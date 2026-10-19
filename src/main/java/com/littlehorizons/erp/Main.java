@@ -7,6 +7,7 @@ import com.littlehorizons.erp.util.InputReader;
 import com.littlehorizons.erp.util.OperationCancelledException;
 import com.littlehorizons.erp.view.MainView;
 import com.littlehorizons.erp.view.components.ConsoleUI;
+import com.mysql.cj.jdbc.AbandonedConnectionCleanupThread;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
@@ -18,6 +19,15 @@ import java.util.Scanner;
 public class Main {
 
     public static void main(String[] args) {
+        try {
+            run();
+        } finally {
+            // Stops the MySQL driver cleanup thread so the JVM (and mvn exec:java) exits cleanly
+            AbandonedConnectionCleanupThread.uncheckedShutdown();
+        }
+    }
+
+    private static void run() {
         // UTF-8 output so accents and box characters look right in any console (VS Code, NetBeans, terminal)
         System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
         ErrorLogger logger = ErrorLogger.getInstance();
