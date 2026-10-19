@@ -104,6 +104,49 @@ src/main/java/com/littlehorizons/erp/
 └── util/                  Conexión, logger, lectura y validación de entradas, formatos
 ```
 
+### Diagrama de capas
+
+```mermaid
+flowchart LR
+    V[view<br/>StudentView, FinanceView...] --> C[controller<br/>StudentController, FinanceController...]
+    C --> S[service<br/>StudentService, PaymentService...]
+    S --> D[dao<br/>interfaces StudentDao, LoanDao&lt;T&gt;...]
+    D -. implementa .-> J[dao.jdbc<br/>StudentDaoJdbc, BaseJdbcDao...]
+    J --> DB[(MySQL<br/>erp_little_horizons)]
+    S --> I[service.invoice<br/>OpenPdfInvoiceGenerator]
+    I --> PDF[[invoices/factura_000123.pdf]]
+    A[AppContext] -. crea y conecta .-> C & S & J
+```
+
+### Diagrama de clases del dominio
+
+```mermaid
+classDiagram
+    class Person { <<abstract>> id; documentType; documentNumber; firstName; lastName; getFullName() }
+    class Student { birthDate; gender; address; status; getAgeAt() }
+    class Guardian { relationship; financiallyResponsible }
+    class Teacher { specialization; hireDate; status }
+    class Loan { <<abstract>> resourceId; loanDate; dueDate; returnDate; isOverdue() }
+    Person <|-- Student
+    Person <|-- Guardian
+    Person <|-- Teacher
+    Loan <|-- StudentLoan
+    Loan <|-- TeacherLoan
+    Student "1..*" -- "1..*" Guardian : estudiante_acudiente
+    Student "1" --> "*" Enrollment
+    Student "*" -- "*" Subject : SubjectEnrollment
+    Teacher "*" -- "*" Subject : TeacherAssignment
+    TeacherAssignment "1" --> "*" Schedule
+    Student "1" --> "*" AcademicRecord
+    Student "1" --> "*" Attendance
+    Student "*" -- "*" Club : ClubMembership
+    Student "*" -- "*" SchoolEvent : EventParticipation
+    Student "1" --> "*" Charge
+    Student "1" --> "*" Payment
+    Payment "1" --> "1" Invoice
+    Resource "1" --> "*" Loan
+```
+
 **Flujo de una petición:** `View → Controller → Service → DAO → MySQL`. Cada capa solo conoce a la de abajo y siempre a través de interfaces.
 
 - La vista **no tiene reglas de negocio**: lee, llama al controlador e imprime.
@@ -147,6 +190,15 @@ src/main/java/com/littlehorizons/erp/
 ![Factura PDF](docs/screenshots/invoice.png)
 
 Ejemplo completo: [`docs/factura_ejemplo.pdf`](docs/factura_ejemplo.pdf). Al confirmar un pago se genera `invoices/factura_000123.pdf` y el sistema muestra la ruta absoluta. El PDF incluye la razón social *Colegio Internacional Little Horizons S.A.S.*, NIT, dirección, teléfono y correo, los datos del acudiente pagador y del estudiante, el número consecutivo, la fecha, el detalle, el subtotal, el IVA y el total, el CUFE, el código QR y la resolución de habilitación.
+
+## Javadoc
+
+Todas las clases están documentadas. Para generar la documentación HTML:
+
+```bash
+mvn javadoc:javadoc
+# abrir target/reports/apidocs/index.html
+```
 
 ## Manejo de errores y logs
 
