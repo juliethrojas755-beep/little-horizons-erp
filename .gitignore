@@ -1,0 +1,9 @@
+target/
+error_log.txt
+invoices/*.pdf
+.DS_Store
+# IDE files
+.idea/
+*.iml
+nbproject/private/
+.vscode/
