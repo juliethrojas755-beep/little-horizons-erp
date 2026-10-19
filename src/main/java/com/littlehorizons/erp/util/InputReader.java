@@ -12,12 +12,14 @@ import java.util.function.Predicate;
 
 /**
  * Reads and validates console input. Every method retries until the value is valid.
- * <p>Typing {@value #CANCEL_KEYWORD} in any prompt throws {@link OperationCancelledException},
- * which lets the user go back from any point.</p>
+ * <p>Navigation from any prompt: {@value #CANCEL_KEYWORD} throws {@link OperationCancelledException}
+ * (back to the previous menu) and {@value #MAIN_MENU_KEYWORD} throws {@link ReturnToMainMenuException}
+ * (straight to the main menu).</p>
  */
 public final class InputReader {
 
     public static final String CANCEL_KEYWORD = "0";
+    public static final String MAIN_MENU_KEYWORD = "M";
     public static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     public static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -157,7 +159,11 @@ public final class InputReader {
             // input closed (Ctrl+D): behave like a cancel instead of crashing
             throw new OperationCancelledException();
         }
-        return scanner.nextLine().trim();
+        String value = scanner.nextLine().trim();
+        if (MAIN_MENU_KEYWORD.equalsIgnoreCase(value)) {
+            throw new ReturnToMainMenuException();
+        }
+        return value;
     }
 
     private void printError(String message) {
