@@ -53,7 +53,13 @@ El script `docs/database.sql` tiene dos secciones:
 
 ### 2. Credenciales
 
-Edite `src/main/resources/database.properties`:
+Copie la plantilla y edite el archivo resultante (está en `.gitignore`, así su contraseña nunca se sube a GitHub):
+
+```bash
+cp src/main/resources/database.properties.example src/main/resources/database.properties
+```
+
+Contenido de `src/main/resources/database.properties`:
 
 ```properties
 db.url=jdbc:mysql://localhost:3306/erp_little_horizons?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Bogota&characterEncoding=UTF-8

@@ -10,3 +10,4 @@ nbproject/private/
 
 # Local assistant notes (not part of the deliverable)
 CLAUDE.md
+src/main/resources/database.properties

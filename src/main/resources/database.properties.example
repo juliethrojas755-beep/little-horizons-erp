@@ -1,0 +1,8 @@
+# MySQL connection settings for Little Horizons ERP.
+# 1) Copy this file as database.properties (same folder):
+#      cp src/main/resources/database.properties.example src/main/resources/database.properties
+# 2) Write your own MySQL user and password in database.properties.
+# database.properties is ignored by Git, so your password is never uploaded.
+db.url=jdbc:mysql://localhost:3306/erp_little_horizons?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Bogota&characterEncoding=UTF-8
+db.user=root
+db.password=
