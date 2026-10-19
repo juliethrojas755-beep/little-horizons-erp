@@ -132,8 +132,9 @@ public class ReportService {
                 .collect(Collectors.groupingBy(AcademicRecord::getStudentId,
                         Collectors.mapping(AcademicRecord::getGrade, Collectors.toList())))
                 .entrySet().stream()
-                .map(entry -> Map.entry(entry.getKey(), AcademicService.average(entry.getValue())))
-                .sorted(Map.Entry.<Integer, BigDecimal>comparingByValue().reversed())
+                .map(entry -> Map.entry(entry.getKey(), AcademicService.average(entry.getValue(), 2)))
+                .sorted(Map.Entry.<Integer, BigDecimal>comparingByValue().reversed()
+                        .thenComparing(entry -> students.get(entry.getKey()).getFullName()))
                 .limit(limit)
                 .map(entry -> new StudentRanking(position.incrementAndGet(), entry.getKey(),
                         students.get(entry.getKey()).getFullName(), gradeOfStudent.getOrDefault(entry.getKey(), "-"),

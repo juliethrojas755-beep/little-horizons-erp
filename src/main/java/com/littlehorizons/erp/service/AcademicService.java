@@ -223,8 +223,13 @@ public class AcademicService {
 
     /** Average rounded to one decimal, like the DECIMAL(2,1) column. */
     public static BigDecimal average(List<BigDecimal> values) {
+        return average(values, 1);
+    }
+
+    /** Average with the given decimals (rankings use 2 decimals to break ties). */
+    public static BigDecimal average(List<BigDecimal> values, int scale) {
         BigDecimal sum = values.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-        return sum.divide(BigDecimal.valueOf(values.size()), 1, RoundingMode.HALF_UP);
+        return sum.divide(BigDecimal.valueOf(values.size()), scale, RoundingMode.HALF_UP);
     }
 
     private List<SubjectAverage> toSubjectAverages(Map<Integer, List<BigDecimal>> gradesBySubject) {
