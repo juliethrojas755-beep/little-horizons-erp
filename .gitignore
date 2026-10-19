@@ -7,3 +7,6 @@ invoices/*.pdf
 *.iml
 nbproject/private/
 .vscode/
+
+# Local assistant notes (not part of the deliverable)
+CLAUDE.md
