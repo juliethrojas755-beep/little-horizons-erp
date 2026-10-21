@@ -186,9 +186,9 @@ public class ExtracurricularView extends BaseView {
 
     private String medal(EventPosition position) {
         return switch (position) {
-            case FIRST_PLACE -> Ansi.BRIGHT_YELLOW.apply("🥇 1er Lugar");
-            case SECOND_PLACE -> Ansi.WHITE.apply("🥈 2do Lugar");
-            case THIRD_PLACE -> Ansi.YELLOW.apply("🥉 3er Lugar");
+            case FIRST_PLACE -> Ansi.BRIGHT_YELLOW.apply(ConsoleUI.symbol("🥇 ", "") + "1er Lugar");
+            case SECOND_PLACE -> Ansi.WHITE.apply(ConsoleUI.symbol("🥈 ", "") + "2do Lugar");
+            case THIRD_PLACE -> Ansi.YELLOW.apply(ConsoleUI.symbol("🥉 ", "") + "3er Lugar");
             case PARTICIPANT -> "Participante";
         };
     }

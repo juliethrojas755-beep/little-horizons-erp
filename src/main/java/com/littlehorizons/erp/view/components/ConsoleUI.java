@@ -135,6 +135,14 @@ public final class ConsoleUI {
         };
     }
 
+    /**
+     * Returns the emoji when colors are enabled (real terminal) and a plain text
+     * when the console cannot draw emojis, like an IDE output window.
+     */
+    public static String symbol(String emoji, String plain) {
+        return Ansi.isEnabled() ? emoji : plain;
+    }
+
     public static void blank() {
         System.out.println();
     }

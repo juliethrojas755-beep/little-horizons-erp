@@ -140,9 +140,9 @@ public class ReportView extends BaseView {
     private void medals() {
         BaseView.<MedalCount>table()
                 .column("Estudiante", MedalCount::studentName)
-                .numberColumn("🥇 Oro", m -> String.valueOf(m.gold()))
-                .numberColumn("🥈 Plata", m -> String.valueOf(m.silver()))
-                .numberColumn("🥉 Bronce", m -> String.valueOf(m.bronze()))
+                .numberColumn(ConsoleUI.symbol("🥇 ", "") + "Oro", m -> String.valueOf(m.gold()))
+                .numberColumn(ConsoleUI.symbol("🥈 ", "") + "Plata", m -> String.valueOf(m.silver()))
+                .numberColumn(ConsoleUI.symbol("🥉 ", "") + "Bronce", m -> String.valueOf(m.bronze()))
                 .numberColumn("Total", m -> Ansi.BOLD.apply(String.valueOf(m.total())))
                 .print(require(app.reports().medalTable()));
     }
@@ -179,9 +179,9 @@ public class ReportView extends BaseView {
 
     private static String trophy(int position) {
         return switch (position) {
-            case 1 -> Ansi.BRIGHT_YELLOW.apply("🥇 1");
-            case 2 -> "🥈 2";
-            case 3 -> Ansi.YELLOW.apply("🥉 3");
+            case 1 -> Ansi.BRIGHT_YELLOW.apply(ConsoleUI.symbol("🥇 ", "") + "1");
+            case 2 -> ConsoleUI.symbol("🥈 ", "") + "2";
+            case 3 -> Ansi.YELLOW.apply(ConsoleUI.symbol("🥉 ", "") + "3");
             default -> String.valueOf(position);
         };
     }

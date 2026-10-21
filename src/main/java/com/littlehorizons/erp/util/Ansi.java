@@ -2,8 +2,13 @@ package com.littlehorizons.erp.util;
 
 /**
  * ANSI escape codes used to color the console.
- * <p>Colors can be turned off with {@code -Dlh.colors=false} or the {@code NO_COLOR}
- * environment variable, for consoles that do not render ANSI codes.</p>
+ * <p>
+ * Colors are turned on automatically only when the program runs in a real terminal
+ * ({@link System#console()} is not null). IDE output windows such as the NetBeans Output
+ * tab are not terminals, so colors are disabled there to avoid raw escape codes on screen.
+ * </p>
+ * <p>Manual control: {@code -Dlh.colors=true} forces colors on, {@code -Dlh.colors=false} forces
+ * them off, and the {@code NO_COLOR} environment variable also turns them off.</p>
  */
 public enum Ansi {
 
@@ -11,8 +16,7 @@ public enum Ansi {
     RED("31"), GREEN("32"), YELLOW("33"), BLUE("34"), MAGENTA("35"), CYAN("36"), WHITE("97"), GRAY("90"),
     BRIGHT_BLUE("94"), BRIGHT_CYAN("96"), BRIGHT_YELLOW("93"), BRIGHT_GREEN("92"), BRIGHT_MAGENTA("95");
 
-    private static final boolean ENABLED = !"false".equalsIgnoreCase(System.getProperty("lh.colors"))
-            && System.getenv("NO_COLOR") == null;
+    private static final boolean ENABLED = detectSupport();
 
     private final String code;
 
@@ -32,5 +36,13 @@ public enum Ansi {
 
     public static boolean isEnabled() {
         return ENABLED;
+    }
+
+    private static boolean detectSupport() {
+        String forced = System.getProperty("lh.colors");
+        if (forced != null) {
+            return "true".equalsIgnoreCase(forced);
+        }
+        return System.getenv("NO_COLOR") == null && System.console() != null;
     }
 }
