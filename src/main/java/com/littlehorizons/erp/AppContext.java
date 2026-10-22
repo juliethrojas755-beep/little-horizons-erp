@@ -23,12 +23,14 @@ import com.littlehorizons.erp.service.discount.DiscountStrategyFactory;
 import com.littlehorizons.erp.service.invoice.OpenPdfInvoiceGenerator;
 
 /**
- * Composition root: the ONLY place where concrete classes are created and connected.
- * <p>DAOs go into services and services into controllers through constructors
- * (manual Dependency Injection). The rest of the code only knows interfaces.</p>
+ * Raíz de composición: el ÚNICO lugar donde se crean las clases concretas y se conectan entre sí.
+ * <p>Los DAO entran a los servicios y los servicios a los controladores por el constructor
+ * (inyección de dependencias manual). El resto del código solo conoce interfaces.</p>
+ * <p>Se lee de abajo hacia arriba: DAO (acceso a datos) → servicios (reglas) → controladores (puente con la vista).</p>
  */
 public class AppContext {
 
+    // Un controlador por módulo; las vistas los usan a través de los métodos de abajo
     private final StudentController studentController;
     private final AcademicController academicController;
     private final TeacherController teacherController;
@@ -37,10 +39,13 @@ public class AppContext {
     private final ResourceController resourceController;
     private final ReportController reportController;
 
+    // Constructor: arma todo el árbol de objetos de la aplicación
     public AppContext() {
+        // DAO que se comparten entre varios servicios (se crean una sola vez)
         StudentDao studentDao = DaoFactory.students();
         GuardianDao guardianDao = DaoFactory.guardians();
 
+        // ---- Servicios: cada uno recibe los DAO que necesita ----
         StudentService studentService = new StudentService(studentDao, guardianDao, DaoFactory.enrollments(),
                 DaoFactory.gradeLevels());
         AcademicService academicService = new AcademicService(DaoFactory.subjects(), DaoFactory.subjectEnrollments(),
@@ -51,9 +56,11 @@ public class AppContext {
         ExtracurricularService extracurricularService = new ExtracurricularService(DaoFactory.clubs(),
                 DaoFactory.clubMemberships(), DaoFactory.events(), DaoFactory.eventParticipations(), studentDao);
 
-        // The sibling strategy asks the student service whether an ACTIVE sibling exists
+        // La estrategia de hermanos le pregunta al servicio de estudiantes si existe un hermano ACTIVO
+        // Fábrica de descuentos; la lambda dice si un estudiante tiene al menos un hermano activo
         DiscountStrategyFactory discounts = new DiscountStrategyFactory(studentId -> studentService.getSiblings(studentId)
                 .stream().anyMatch(sibling -> sibling.getStatus() == StudentStatus.ACTIVE));
+        // El servicio de pagos recibe además el generador de PDF (OpenPDF) y la fábrica de descuentos
         PaymentService paymentService = new PaymentService(DaoFactory.paymentConcepts(), DaoFactory.studentDiscounts(),
                 DaoFactory.charges(), DaoFactory.payments(), DaoFactory.invoices(), studentDao, guardianDao,
                 DaoFactory.transactions(), new OpenPdfInvoiceGenerator(), discounts);
@@ -66,6 +73,7 @@ public class AppContext {
                 DaoFactory.eventParticipations(), DaoFactory.resources(), DaoFactory.clubs(), DaoFactory.studentLoans(),
                 DaoFactory.teacherLoans());
 
+        // ---- Controladores: cada uno recibe el servicio de su módulo ----
         studentController = new StudentController(studentService);
         academicController = new AcademicController(academicService, attendanceService);
         teacherController = new TeacherController(teacherService);
@@ -75,6 +83,7 @@ public class AppContext {
         reportController = new ReportController(reportService);
     }
 
+    // Métodos de acceso: cada vista pide el controlador que necesita
     public StudentController students() {
         return studentController;
     }

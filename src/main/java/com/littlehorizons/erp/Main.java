@@ -13,29 +13,37 @@ import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 
 /**
- * Entry point of Little Horizons ERP. It checks the database, builds the application
- * and opens the main menu. No business logic lives here.
+ * Punto de entrada de Little Horizons ERP. Verifica la base de datos, arma la aplicación
+ * y abre el menú principal. Aquí NO hay lógica de negocio.
  */
 public class Main {
 
+    /**
+     * Método con el que Java inicia el programa. Todo se hace dentro de run() y el finally garantiza
+     * que siempre se apague el hilo del driver, incluso si ocurre un error.
+     */
     public static void main(String[] args) {
         try {
             run();
         } finally {
-            // Stops the MySQL driver cleanup thread so the JVM (and mvn exec:java) exits cleanly
+            // Detiene el hilo de limpieza del driver de MySQL para que el programa (y mvn exec:java) termine limpio
             AbandonedConnectionCleanupThread.uncheckedShutdown();
         }
     }
 
+    /** Flujo de la aplicación: conectar a MySQL, construir las dependencias y mostrar el menú principal. */
     private static void run() {
-        // UTF-8 output so accents and box characters look right in any console (VS Code, NetBeans, terminal)
+        // Salida en UTF-8 para que las tildes y los bordes se vean bien en cualquier consola (VS Code, NetBeans, terminal)
         System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
+        // Logger único (Singleton) que escribe en error_log.txt
         ErrorLogger logger = ErrorLogger.getInstance();
         logger.info("Main", "Application started");
 
+        // Pantalla de bienvenida con el logo
         ConsoleUI.clear();
         ConsoleUI.banner();
         System.out.println("  " + Ansi.GRAY.apply("Conectando con la base de datos erp_little_horizons..."));
+        // Si MySQL no responde, se explica qué revisar y se termina (no tiene sentido abrir el menú)
         if (!DatabaseConnection.getInstance().testConnection()) {
             ConsoleUI.error("No fue posible conectarse a MySQL.");
             ConsoleUI.info("Verifique que MySQL esté encendido y revise usuario y contraseña en "
@@ -44,10 +52,13 @@ public class Main {
         }
         ConsoleUI.success("Conexión establecida.");
 
+        // try-with-resources: el Scanner del teclado se cierra solo al terminar
         try (Scanner scanner = new Scanner(System.in, StandardCharsets.UTF_8)) {
+            // AppContext arma todas las dependencias; MainView muestra el menú hasta que el usuario elige salir
             new MainView(new AppContext(), new InputReader(scanner)).show();
         } catch (OperationCancelledException e) {
-            // input stream closed: leave quietly
+            // El teclado se cerró (por ejemplo Ctrl+D): se sale sin mostrar errores
+        // Cualquier error inesperado se registra con su traza y se avisa al usuario
         } catch (RuntimeException e) {
             logger.error("Main", "Fatal error", e);
             ConsoleUI.error("Error inesperado. Revise error_log.txt.");
