@@ -17,6 +17,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- Main class: read by NetBeans (Run) and by the exec plugin -->
         <exec.mainClass>com.littlehorizons.erp.Main</exec.mainClass>
+        <!-- Javadoc: no se exige @param/@return en cada método (los comentarios explicativos ya están en el código) -->
+        <doclint>none</doclint>
     </properties>
 
     <dependencies>
