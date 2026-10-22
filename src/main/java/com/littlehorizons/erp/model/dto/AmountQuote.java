@@ -3,9 +3,12 @@ package com.littlehorizons.erp.model.dto;
 import java.math.BigDecimal;
 
 /**
- * Price of a concept for one student after applying the best available discount.
+ * Precio de un concepto para un estudiante después de aplicar el mejor descuento.
  *
- * @param discountLabel description of the applied discount, or "Sin descuento"
+ * @param baseAmount     valor del catálogo antes del descuento
+ * @param discountAmount valor que se descuenta (cero si no hay descuento)
+ * @param finalAmount    valor final que debe pagar
+ * @param discountLabel  descripción del descuento aplicado, o "Sin descuento"
  */
 public record AmountQuote(BigDecimal baseAmount, BigDecimal discountAmount, BigDecimal finalAmount, String discountLabel) {
 }
