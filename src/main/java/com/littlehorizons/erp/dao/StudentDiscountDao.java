@@ -4,13 +4,24 @@ import com.littlehorizons.erp.model.StudentDiscount;
 import java.util.List;
 
 /**
- * Data access for per-student discounts ({@code descuentos_estudiante}).
+ * Acceso a datos de descuentos por estudiante (tabla {@code descuentos_estudiante}).
  */
 public interface StudentDiscountDao {
 
+    /**
+     * Guarda un registro nuevo.
+     *
+     * @return el id generado por la base de datos
+     */
     int insert(StudentDiscount discount);
 
+    /**
+     * Descuentos de un estudiante.
+     */
     List<StudentDiscount> findByStudent(int studentId);
 
+    /**
+     * Descuentos de un estudiante para un concepto específico.
+     */
     List<StudentDiscount> findByStudentAndConcept(int studentId, int conceptId);
 }

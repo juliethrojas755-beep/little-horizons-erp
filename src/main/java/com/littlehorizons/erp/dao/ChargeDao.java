@@ -7,20 +7,41 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Data access for charges owed by students ({@code cargos}).
+ * Acceso a datos de cargos (valores que debe cada estudiante, tabla {@code cargos}).
  */
 public interface ChargeDao {
 
+    /**
+     * Guarda un cargo pendiente.
+     *
+     * @return el id generado
+     */
     int insert(Charge charge);
 
+    /**
+     * Busca un registro por su id.
+     *
+     * @return el registro, o vacío si no existe
+     */
     Optional<Charge> findById(int chargeId);
 
+    /**
+     * Todos los cargos pendientes, los más antiguos primero.
+     */
     List<Charge> findPending();
 
+    /**
+     * Cargos pendientes de un estudiante.
+     */
     List<Charge> findPendingByStudent(int studentId);
 
+    /**
+     * Todos los cargos de un estudiante (pagados y pendientes).
+     */
     List<Charge> findByStudent(int studentId);
 
-    /** Marks the charge as paid inside the payment transaction. */
+    /**
+     * Marca el cargo como Pagado dentro de la transacción del pago.
+     */
     void markPaid(Connection connection, int chargeId, int paymentId) throws SQLException;
 }

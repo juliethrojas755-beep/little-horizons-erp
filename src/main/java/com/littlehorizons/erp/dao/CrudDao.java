@@ -1,16 +1,31 @@
 package com.littlehorizons.erp.dao;
 
 /**
- * Full create, read, update and delete operations for editable entities.
+ * Operaciones completas de crear, leer, actualizar y eliminar (CRUD).
+ * Extiende {@link ReadDao}, por lo que también hereda findById y findAll.
+ *
+ * @param <T> entidad que maneja el DAO
  */
 public interface CrudDao<T> extends ReadDao<T> {
 
-    /** @return the generated id */
+    /**
+     * Guarda un registro nuevo.
+     *
+     * @return el id generado por la base de datos
+     */
     int insert(T entity);
 
-    /** @return {@code true} when a row was updated */
+    /**
+     * Actualiza un registro existente.
+     *
+     * @return {@code true} si se actualizó alguna fila
+     */
     boolean update(T entity);
 
-    /** @return {@code true} when a row was deleted */
+    /**
+     * Elimina un registro.
+     *
+     * @return {@code true} si se eliminó alguna fila
+     */
     boolean delete(int id);
 }

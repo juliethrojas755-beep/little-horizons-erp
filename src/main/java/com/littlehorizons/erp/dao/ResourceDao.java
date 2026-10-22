@@ -8,14 +8,22 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Data access for loanable resources ({@code recursos}).
+ * Acceso a datos de recursos prestables (tabla {@code recursos}).
  */
 public interface ResourceDao extends CrudDao<Resource> {
 
+    /**
+     * Busca un recurso por su código de inventario.
+     */
     Optional<Resource> findByCode(String code);
 
+    /**
+     * Recursos en un estado (por ejemplo, los Disponibles).
+     */
     List<Resource> findByStatus(ResourceStatus status);
 
-    /** Changes the status inside a loan or return transaction. */
+    /**
+     * Cambia el estado dentro de una transacción de préstamo o devolución.
+     */
     void updateStatus(Connection connection, int resourceId, ResourceStatus status) throws SQLException;
 }

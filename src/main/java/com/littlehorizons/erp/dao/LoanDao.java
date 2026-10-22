@@ -8,25 +8,51 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Shared operations for student and teacher loans. Two tables, one contract.
+ * Operaciones comunes de los préstamos a estudiantes y a profesores.
+ * Son dos tablas distintas pero un solo contrato (genéricos).
  *
- * @param <T> {@code StudentLoan} or {@code TeacherLoan}
+ * @param <T> {@code StudentLoan} o {@code TeacherLoan}
  */
 public interface LoanDao<T extends Loan> {
 
+    /**
+     * Guarda el préstamo dentro de la transacción que también cambia el estado del recurso.
+     *
+     * @return el id generado
+     */
     int insert(Connection connection, T loan) throws SQLException;
 
+    /**
+     * Busca un registro por su id.
+     *
+     * @return el registro, o vacío si no existe
+     */
     Optional<T> findById(int loanId);
 
-    /** Loans not returned yet (Activo or Vencido). */
+    /**
+     * Préstamos sin devolver (Activo o Vencido).
+     */
     List<T> findOpen();
 
+    /**
+     * Devuelve todos los registros.
+     */
     List<T> findAll();
 
+    /**
+     * Préstamos de un estudiante o de un profesor.
+     */
     List<T> findByBorrower(int borrowerId);
 
+    /**
+     * Marca el préstamo como Devuelto con la fecha real, dentro de la transacción.
+     */
     void markReturned(Connection connection, int loanId, LocalDate returnDate) throws SQLException;
 
-    /** Changes Activo to Vencido for loans whose due date already passed. */
+    /**
+     * Cambia de Activo a Vencido los préstamos cuya fecha límite ya pasó.
+     *
+     * @return cuántos préstamos se actualizaron
+     */
     int refreshOverdue(LocalDate today);
 }

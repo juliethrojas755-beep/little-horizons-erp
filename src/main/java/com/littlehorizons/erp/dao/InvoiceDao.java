@@ -7,21 +7,39 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Data access for electronic invoices ({@code facturas}).
+ * Acceso a datos de facturas electrónicas (tabla {@code facturas}).
  */
 public interface InvoiceDao {
 
+    /**
+     * Guarda la factura dentro de la transacción del pago.
+     *
+     * @return el id generado
+     */
     int insert(Connection connection, Invoice invoice) throws SQLException;
 
-    /** Stores the PDF name and path once the file is written. */
+    /**
+     * Guarda el nombre y la ruta del PDF una vez escrito el archivo.
+     */
     boolean updateFile(int invoiceId, String fileName, String filePath);
 
+    /**
+     * Factura asociada a un pago.
+     */
     Optional<Invoice> findByPayment(int paymentId);
 
+    /**
+     * Busca una factura por su número (FE-000123).
+     */
     Optional<Invoice> findByNumber(String number);
 
+    /**
+     * Devuelve todos los registros.
+     */
     List<Invoice> findAll();
 
-    /** @return the next invoice consecutive (max id + 1) */
+    /**
+     * Siguiente consecutivo de factura (el id máximo + 1).
+     */
     int nextSequence();
 }

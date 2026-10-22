@@ -7,22 +7,42 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Data access for received payments ({@code pagos}).
+ * Acceso a datos de pagos recibidos (tabla {@code pagos}).
  */
 public interface PaymentDao {
 
-    /** Inserts inside a transaction opened by the service. */
+    /**
+     * Guarda el pago dentro de una transacción abierta por el servicio.
+     *
+     * @param connection conexión compartida de la transacción
+     * @return el id generado
+     */
     int insert(Connection connection, Payment payment) throws SQLException;
 
+    /**
+     * Busca un registro por su id.
+     *
+     * @return el registro, o vacío si no existe
+     */
     Optional<Payment> findById(int paymentId);
 
+    /**
+     * Pagos de un estudiante, el más reciente primero.
+     */
     List<Payment> findByStudent(int studentId);
 
-    /** Payments of every student linked to the guardian. */
+    /**
+     * Pagos de todos los estudiantes vinculados a un acudiente.
+     */
     List<Payment> findByGuardian(int guardianId);
 
+    /**
+     * Devuelve todos los registros.
+     */
     List<Payment> findAll();
 
-    /** @return the next receipt consecutive (max + 1) */
+    /**
+     * Siguiente consecutivo para el número de recibo (el id máximo + 1).
+     */
     int nextReceiptSequence();
 }
