@@ -9,20 +9,24 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Singleton logger that appends errors to {@code error_log.txt} in the working directory.
- * <p>Singleton because every class must write to the same file through the same lock.</p>
+ * Logger Singleton que agrega los mensajes al archivo {@code error_log.txt} de la carpeta del proyecto.
+ * <p>Es Singleton porque todas las clases deben escribir en el mismo archivo usando el mismo candado.</p>
  */
 public final class ErrorLogger {
 
+    // Nombre del archivo de registro
     public static final String LOG_FILE = "error_log.txt";
+    // Formato de fecha y hora de cada línea del log
     private static final DateTimeFormatter TIMESTAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    // Única instancia (Singleton)
     private static ErrorLogger instance;
 
+    // Constructor privado: no se puede crear con "new"
     private ErrorLogger() {
     }
 
-    /** @return the single logger instance (lazy and thread safe) */
+    /** @return la única instancia del logger (se crea la primera vez; synchronized lo hace seguro entre hilos) */
     public static synchronized ErrorLogger getInstance() {
         if (instance == null) {
             instance = new ErrorLogger();
@@ -30,24 +34,27 @@ public final class ErrorLogger {
         return instance;
     }
 
-    /** Logs an error with its full stack trace. */
+    /** Registra un error con su traza completa (stack trace). */
     public void error(String source, String message, Throwable cause) {
         write("ERROR", source, message, cause);
     }
 
-    /** Logs a warning without stack trace (for example, an invalid business operation). */
+    /** Registra una advertencia sin traza (por ejemplo, una operación de negocio inválida). */
     public void warning(String source, String message) {
         write("WARN", source, message, null);
     }
 
-    /** Logs an informative event (application start, invoice generated...). */
+    /** Registra un evento informativo (inicio de la aplicación, factura generada...). */
     public void info(String source, String message) {
         write("INFO", source, message, null);
     }
 
+    /** Escribe una línea en el archivo; synchronized evita que dos escrituras se mezclen. */
     private synchronized void write(String level, String source, String message, Throwable cause) {
-        // try-with-resources closes the writer even if writing fails
+        // try-with-resources cierra el archivo aunque falle la escritura.
+        // FileWriter(..., true) significa "append": agrega al final sin borrar lo anterior
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(LOG_FILE, true))) {
+            // Formato: [fecha] [NIVEL] [clase] mensaje
             writer.write(String.format("[%s] [%-5s] [%s] %s", LocalDateTime.now().format(TIMESTAMP), level, source, message));
             writer.newLine();
             if (cause != null) {
@@ -55,14 +62,15 @@ public final class ErrorLogger {
                 writer.newLine();
             }
         } catch (IOException e) {
-            // Last resort: the log file itself failed, so report on the error stream
+            // Último recurso: si falla el propio archivo de log, se avisa por la salida de errores
             System.err.println("Could not write to " + LOG_FILE + ": " + e.getMessage());
         }
     }
 
+    /** Convierte la traza del error en texto para poder guardarla en el archivo. */
     private String stackTraceOf(Throwable cause) {
         StringWriter buffer = new StringWriter();
-        cause.printStackTrace(new PrintWriter(buffer));
+        cause.printStackTrace(new PrintWriter(buffer));   // la traza se escribe en memoria, no en pantalla
         return buffer.toString().trim();
     }
 }

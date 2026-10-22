@@ -1,8 +1,8 @@
 package com.littlehorizons.erp.util;
 
 /**
- * Thrown when the user types {@value InputReader#MAIN_MENU_KEYWORD} in any prompt.
- * Every submenu lets it pass, and only the main menu catches it.
+ * Se lanza cuando el usuario escribe {@value InputReader#MAIN_MENU_KEYWORD} en cualquier pregunta.
+ * Todos los submenús la dejan pasar y solo el menú principal la captura.
  */
 public class ReturnToMainMenuException extends RuntimeException {
 
