@@ -6,11 +6,12 @@ import java.util.Map;
 import java.util.function.IntPredicate;
 
 /**
- * Factory pattern: returns the strategy that matches each {@link DiscountType}.
- * An {@link EnumMap} replaces a long switch, and the compiler-safe enum key avoids typos.
+ * Patrón Factory: devuelve la estrategia que corresponde a cada {@link DiscountType}.
+ * Un {@link EnumMap} reemplaza un switch largo, y la llave de tipo enum evita errores de escritura.
  */
 public class DiscountStrategyFactory {
 
+    // Una estrategia por cada tipo de descuento
     private final Map<DiscountType, DiscountStrategy> strategies = new EnumMap<>(DiscountType.class);
 
     public DiscountStrategyFactory(IntPredicate hasActiveSibling) {
@@ -19,6 +20,7 @@ public class DiscountStrategyFactory {
         strategies.put(DiscountType.OTHER, new PercentageDiscountStrategy("Descuento especial"));
     }
 
+    /** Entrega la estrategia del tipo de descuento indicado. */
     public DiscountStrategy forType(DiscountType type) {
         return strategies.get(type);
     }

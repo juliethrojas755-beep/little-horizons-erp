@@ -1,16 +1,15 @@
 package com.littlehorizons.erp.service.invoice;
 
 /**
- * Produces the printable invoice file. The payment service depends on this interface,
- * not on OpenPDF (Dependency Inversion): the library could be replaced by PDFBox
- * without touching the business rules.
+ * Produce el archivo imprimible de la factura. El servicio de pagos depende de esta interfaz y no de
+ * OpenPDF (Inversión de Dependencias): se podría cambiar la librería por PDFBox sin tocar las reglas de negocio.
  */
 public interface InvoiceDocumentGenerator {
 
     /**
-     * Writes the invoice file.
+     * Escribe el archivo de la factura.
      *
-     * @return absolute path of the generated file
+     * @return la ruta absoluta del archivo generado
      */
     String generate(InvoiceDocument document);
 }

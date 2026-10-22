@@ -17,11 +17,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Daily attendance and detection of absence patterns.
+ * Asistencia diaria y detección de patrones de inasistencia.
  */
 public class AttendanceService {
 
-    /** More than this number of absences in one week is reported. */
+    /** Más ausencias que este número en una misma semana se reporta como patrón de inasistencia. */
     public static final int WEEKLY_ABSENCE_LIMIT = 3;
 
     private final AttendanceDao attendanceDao;
@@ -32,13 +32,17 @@ public class AttendanceService {
         this.studentDao = studentDao;
     }
 
+    /** Registra la asistencia de un estudiante en una materia y fecha. */
     public int register(int studentId, int subjectId, LocalDate date, AttendanceStatus status, Integer teacherId, String notes) {
+        // No se puede registrar asistencia del futuro
         if (date.isAfter(LocalDate.now())) {
             throw new BusinessException("No se puede registrar asistencia en una fecha futura.");
         }
+        // Solo hay clases de lunes a viernes
         if (date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY) {
             throw new BusinessException("La asistencia solo se registra de lunes a viernes.");
         }
+        // Un estudiante solo puede tener un registro por materia y día
         boolean duplicated = attendanceDao.findByStudent(studentId).stream()
                 .anyMatch(a -> a.getSubjectId() == subjectId && a.getDate().equals(date));
         if (duplicated) {
@@ -58,36 +62,41 @@ public class AttendanceService {
         return attendanceDao.findByStudent(studentId);
     }
 
-    /** How many records of each status the student has. */
+    /** Cuántos registros de cada estado tiene el estudiante (presente, ausente, tardanza...). */
     public Map<AttendanceStatus, Long> summaryByStatus(int studentId) {
         return attendanceDao.findByStudent(studentId).stream()
+                // groupingBy + counting: cuenta cuántas veces aparece cada estado
                 .collect(Collectors.groupingBy(Attendance::getStatus, Collectors.counting()));
     }
 
     /**
-     * Students with more than {@link #WEEKLY_ABSENCE_LIMIT} absences in the same week.
-     * Groups by (student, Monday of the week) and keeps the groups above the limit.
+     * Estudiantes con más de {@link #WEEKLY_ABSENCE_LIMIT} ausencias en una misma semana.
+     * Agrupa por (estudiante, lunes de la semana) y se queda con los grupos que superan el límite.
      */
     public List<AbsencePattern> absencePatterns(LocalDate from, LocalDate to) {
+        // Tabla id -> estudiante para poder mostrar el nombre en el resultado
         Map<Integer, Student> students = studentDao.findAll().stream()
                 .collect(Collectors.toMap(Student::getId, Function.identity()));
 
+        // Record local: la "llave" de agrupación es la pareja (estudiante, semana)
         record StudentWeek(int studentId, LocalDate weekStart) {
         }
 
         return attendanceDao.findBetween(from, to).stream()
-                .filter(a -> a.getStatus() == AttendanceStatus.ABSENT)
+                .filter(a -> a.getStatus() == AttendanceStatus.ABSENT)         // solo las ausencias
                 .collect(Collectors.groupingBy(
+                        // la semana se identifica por su lunes (previousOrSame devuelve el mismo día si ya es lunes)
                         a -> new StudentWeek(a.getStudentId(), a.getDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))),
-                        Collectors.counting()))
+                        Collectors.counting()))                                 // cuenta las ausencias de cada (estudiante, semana)
                 .entrySet().stream()
-                .filter(entry -> entry.getValue() > WEEKLY_ABSENCE_LIMIT)
+                .filter(entry -> entry.getValue() > WEEKLY_ABSENCE_LIMIT)       // solo los que superan el límite
                 .map(entry -> new AbsencePattern(entry.getKey().studentId(),
                         nameOf(students.get(entry.getKey().studentId())), entry.getKey().weekStart(), entry.getValue()))
-                .sorted(Comparator.comparingLong(AbsencePattern::absences).reversed())
+                .sorted(Comparator.comparingLong(AbsencePattern::absences).reversed())   // primero los que más faltaron
                 .toList();
     }
 
+    /** Nombre del estudiante, o "Desconocido" si no se encuentra. */
     private String nameOf(Student student) {
         return student == null ? "Desconocido" : student.getFullName();
     }

@@ -11,21 +11,26 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Generates the QR code image of the invoice with ZXing.
+ * Genera la imagen del código QR de la factura con la librería ZXing.
  */
 public final class QrCodeGenerator {
 
+    // Constructor privado: clase de utilidad
     private QrCodeGenerator() {
     }
 
     /**
-     * @param content text encoded in the QR
-     * @param size    width and height in pixels
-     * @return PNG image bytes
+     * Convierte un texto en un código QR.
+     *
+     * @param content texto que se codifica en el QR
+     * @param size    ancho y alto en píxeles
+     * @return los bytes de una imagen PNG
      */
     public static byte[] toPng(String content, int size) throws WriterException, IOException {
+        // BitMatrix es la cuadrícula de puntos blancos y negros del QR; MARGIN 1 deja un borde pequeño
         BitMatrix matrix = new QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size,
                 Map.of(EncodeHintType.MARGIN, 1, EncodeHintType.CHARACTER_SET, "UTF-8"));
+        // La imagen se escribe en memoria (no en un archivo) para insertarla directamente en el PDF
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             MatrixToImageWriter.writeToStream(matrix, "PNG", output);
             return output.toByteArray();

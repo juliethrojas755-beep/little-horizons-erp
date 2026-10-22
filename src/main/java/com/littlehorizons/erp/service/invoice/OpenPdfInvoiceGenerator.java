@@ -28,12 +28,16 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 /**
- * Draws the simulated DIAN electronic invoice with OpenPDF and the QR code with ZXing.
+ * Dibuja la factura electrónica simulada (DIAN) con la librería OpenPDF y el código QR con ZXing.
+ * <p>Implementa {@link InvoiceDocumentGenerator}: el servicio de pagos solo conoce la interfaz, no esta clase.</p>
+ * <p>El PDF se arma de arriba hacia abajo con tablas: encabezado, partes, detalle, totales y pie con QR y CUFE.</p>
  */
 public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
 
+    // Carpeta (dentro del proyecto) donde se guardan los PDF generados
     public static final String OUTPUT_DIRECTORY = "invoices";
 
+    // ---------- Paleta de colores de la factura (valores RGB) ----------
     private static final Color NAVY = new Color(17, 45, 78);
     private static final Color TEAL = new Color(0, 150, 136);
     private static final Color GOLD = new Color(244, 180, 0);
@@ -42,6 +46,7 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
     private static final Color TEXT = new Color(30, 41, 59);
     private static final Color MUTED = new Color(100, 116, 139);
 
+    // ---------- Tipos de letra: nombre de la fuente, tamaño, estilo y color ----------
     private static final Font BRAND = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 20, Font.NORMAL, Color.WHITE);
     private static final Font BRAND_SUB = FontFactory.getFont(FontFactory.HELVETICA, 8.5f, Font.NORMAL, new Color(203, 213, 225));
     private static final Font TITLE = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, Font.NORMAL, NAVY);
@@ -53,18 +58,30 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
     private static final Font SMALL = FontFactory.getFont(FontFactory.HELVETICA, 7, Font.NORMAL, MUTED);
     private static final Font MONO = FontFactory.getFont(FontFactory.COURIER, 7, Font.NORMAL, TEXT);
 
+    /**
+     * Genera el archivo PDF de la factura.
+     *
+     * @return la ruta absoluta del PDF generado
+     */
     @Override
     public String generate(InvoiceDocument data) {
+        // 1) Se crea la carpeta invoices/ si todavía no existe
         File directory = new File(OUTPUT_DIRECTORY);
         if (!directory.exists() && !directory.mkdirs()) {
             throw new IllegalStateException("No se pudo crear la carpeta " + directory.getAbsolutePath());
         }
+        // 2) El archivo se llama como lo define la factura (factura_000123.pdf)
         File file = new File(directory, data.invoice().getPdfFileName());
+        // 3) Documento tamaño A4 con márgenes de 36 puntos
         Document document = new Document(PageSize.A4, 36, 36, 36, 36);
+        // try-with-resources: el archivo se cierra solo aunque ocurra un error
         try (OutputStream output = new FileOutputStream(file)) {
+            // Conecta el documento con el archivo de salida
             PdfWriter.getInstance(document, output);
+            // Metadatos del PDF (título y autor)
             document.addTitle("Factura " + data.invoice().getNumber());
             document.addAuthor(SchoolInfo.LEGAL_NAME);
+            // 4) Se abre el documento y se agregan las secciones de arriba hacia abajo
             document.open();
             document.add(header(data.invoice()));
             document.add(spacer(10));
@@ -75,19 +92,23 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
             document.add(totalsAndPayment(data.invoice(), data.payment()));
             document.add(spacer(16));
             document.add(footer(data));
+            // 5) Al cerrar el documento se termina de escribir el archivo
             document.close();
             return file.getAbsolutePath();
         } catch (IOException | DocumentException | WriterException e) {
+            // Cualquier falla (archivo, PDF o QR) se registra en el log y se avisa con un mensaje claro
             ErrorLogger.getInstance().error("OpenPdfInvoiceGenerator", "Invoice PDF failed: " + file, e);
             throw new IllegalStateException("No se pudo generar el PDF de la factura: " + e.getMessage(), e);
         }
     }
 
-    /** Navy band with the school brand on the left and the invoice number on the right. */
+    /** Banda azul con la marca del colegio a la izquierda y el número de factura a la derecha. */
     private PdfPTable header(Invoice invoice) {
+        // Tabla de 2 columnas: 58 % para la marca y 42 % para el número de factura
         PdfPTable table = new PdfPTable(new float[]{58, 42});
         table.setWidthPercentage(100);
 
+        // ---- Celda izquierda: marca y datos legales del colegio ----
         PdfPCell brand = new PdfPCell();
         brand.setBackgroundColor(NAVY);
         brand.setBorder(Rectangle.NO_BORDER);
@@ -102,6 +123,7 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         brand.addElement(new Paragraph("Tel. " + SchoolInfo.PHONE + "  ·  " + SchoolInfo.EMAIL, BRAND_SUB));
         table.addCell(brand);
 
+        // ---- Celda derecha: título, número y fecha de la factura ----
         PdfPCell box = new PdfPCell();
         box.setBackgroundColor(LIGHT);
         box.setBorder(Rectangle.NO_BORDER);
@@ -118,6 +140,7 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         box.addElement(date);
         table.addCell(box);
 
+        // ---- Franja verde delgada debajo del encabezado ----
         PdfPCell accent = new PdfPCell(new Phrase(" "));
         accent.setColspan(2);
         accent.setFixedHeight(4);
@@ -127,11 +150,12 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         return table;
     }
 
-    /** Payer (guardian) and student data side by side. */
+    /** Datos del acudiente pagador y del estudiante, uno al lado del otro. */
     private PdfPTable parties(Guardian payer, Student student) {
         PdfPTable table = new PdfPTable(2);
         table.setWidthPercentage(100);
         table.setSpacingBefore(4);
+        // Tarjeta izquierda: acudiente pagador (si no hay, se imprime "Consumidor final")
         PdfPCell left = card("ADQUIRIENTE (ACUDIENTE PAGADOR)");
         if (payer != null) {
             field(left, "Nombre", payer.getFullName());
@@ -142,6 +166,7 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         } else {
             field(left, "Nombre", "Consumidor final");
         }
+        // Tarjeta derecha: estudiante beneficiario
         PdfPCell right = card("ESTUDIANTE BENEFICIARIO");
         field(right, "Nombre", student.getFullName());
         field(right, "Documento", student.getDocumentType() + " " + student.getDocumentNumber());
@@ -151,9 +176,12 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         return table;
     }
 
+    /** Tabla con las líneas de la factura: descripción, cantidad, valor unitario y subtotal. */
     private PdfPTable detail(InvoiceDocument data) {
+        // Tabla del detalle: descripción 52 %, cantidad 10 %, valor unitario 19 % y subtotal 19 %
         PdfPTable table = new PdfPTable(new float[]{52, 10, 19, 19});
         table.setWidthPercentage(100);
+        // La primera fila es el encabezado y se repite si la tabla pasa a otra página
         table.setHeaderRows(1);
         for (String column : new String[]{"Descripción", "Cant.", "Valor unitario", "Subtotal"}) {
             PdfPCell cell = new PdfPCell(new Phrase(column, HEADER));
@@ -163,6 +191,7 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
             cell.setHorizontalAlignment(column.equals("Descripción") ? Element.ALIGN_LEFT : Element.ALIGN_RIGHT);
             table.addCell(cell);
         }
+        // Filas alternadas (cebra): una blanca y una gris clara para que se lea mejor
         boolean zebra = false;
         for (InvoiceLine line : data.lines()) {
             Color background = zebra ? LIGHT : Color.WHITE;
@@ -175,7 +204,9 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         return table;
     }
 
+    /** Información del pago (medio, recibo, fecha) y totales (subtotal, IVA y total a pagar). */
     private PdfPTable totalsAndPayment(Invoice invoice, Payment payment) {
+        // Tabla externa: información del pago a la izquierda y totales a la derecha
         PdfPTable outer = new PdfPTable(new float[]{55, 45});
         outer.setWidthPercentage(100);
 
@@ -186,6 +217,7 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         field(paymentCard, "Forma de pago", "Contado");
         outer.addCell(paymentCard);
 
+        // Tabla de totales: subtotal, IVA y total a pagar
         PdfPTable totals = new PdfPTable(new float[]{55, 45});
         totals.addCell(totalRow("Subtotal", false));
         totals.addCell(totalValue(Formats.money(invoice.getSubtotal()), false));
@@ -200,11 +232,12 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         return outer;
     }
 
-    /** QR on the left, CUFE and DIAN resolution on the right. */
+    /** QR a la izquierda; CUFE, resolución de la DIAN y aviso legal a la derecha. */
     private PdfPTable footer(InvoiceDocument data) throws IOException, DocumentException, WriterException {
         PdfPTable table = new PdfPTable(new float[]{22, 78});
         table.setWidthPercentage(100);
 
+        // El código QR se genera con ZXing como imagen PNG y se inserta en el PDF
         Image qr = Image.getInstance(QrCodeGenerator.toPng(data.qrContent(), 220));
         qr.scaleAbsolute(105, 105);
         PdfPCell qrCell = new PdfPCell(qr, false);
@@ -218,6 +251,7 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         info.setBorder(Rectangle.BOX);
         info.setBorderColor(BORDER);
         info.setPadding(10);
+        // CUFE (código único de factura) y resolución de habilitación simulada
         info.addElement(new Paragraph("CUFE", LABEL));
         info.addElement(new Paragraph(data.invoice().getCufe(), MONO));
         info.addElement(spacer(6));
@@ -229,8 +263,9 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         return table;
     }
 
-    // ---------- small builders ----------
+    // ====================== PIEZAS PEQUEÑAS PARA ARMAR EL PDF ======================
 
+    /** Crea una tarjeta con borde y un título en color verde. */
     private PdfPCell card(String title) {
         PdfPCell cell = new PdfPCell();
         cell.setBorder(Rectangle.BOX);
@@ -242,6 +277,7 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         return cell;
     }
 
+    /** Agrega a una tarjeta una línea "Etiqueta: valor" (si el valor está vacío escribe un guion). */
     private void field(PdfPCell card, String label, String value) {
         Paragraph line = new Paragraph();
         line.add(new Chunk(label + ":  ", LABEL));
@@ -249,6 +285,7 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         card.addElement(line);
     }
 
+    /** Celda de una fila del detalle, con su alineación y color de fondo. */
     private PdfPCell row(String text, int alignment, Color background) {
         PdfPCell cell = new PdfPCell(new Phrase(text, VALUE));
         cell.setHorizontalAlignment(alignment);
@@ -259,12 +296,14 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         return cell;
     }
 
+    /** Celda con el nombre de un total (Subtotal, IVA, TOTAL A PAGAR). */
     private PdfPCell totalRow(String label, boolean highlight) {
         PdfPCell cell = new PdfPCell(new Phrase(label, highlight ? TOTAL : LABEL));
         styleTotal(cell, highlight);
         return cell;
     }
 
+    /** Celda con el valor de un total, alineada a la derecha. */
     private PdfPCell totalValue(String value, boolean highlight) {
         PdfPCell cell = new PdfPCell(new Phrase(value, highlight ? TOTAL : VALUE));
         cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
@@ -272,6 +311,7 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         return cell;
     }
 
+    /** Estilo común de las celdas de totales; el total final se resalta con fondo verde. */
     private void styleTotal(PdfPCell cell, boolean highlight) {
         cell.setPadding(7);
         cell.setBorder(Rectangle.BOTTOM);
@@ -282,6 +322,7 @@ public class OpenPdfInvoiceGenerator implements InvoiceDocumentGenerator {
         }
     }
 
+    /** Párrafo vacío que sirve como espacio vertical entre secciones. */
     private Paragraph spacer(float height) {
         Paragraph paragraph = new Paragraph(" ");
         paragraph.setLeading(height);

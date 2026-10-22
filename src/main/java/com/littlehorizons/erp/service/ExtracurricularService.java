@@ -22,7 +22,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Clubs (with capacity control) and school events (with competition positions).
+ * Clubes (con control de cupo) y eventos del colegio (con posiciones de competencia).
  */
 public class ExtracurricularService {
 
@@ -41,8 +41,9 @@ public class ExtracurricularService {
         this.studentDao = studentDao;
     }
 
-    // ---------- clubs ----------
+    // ====================== CLUBES ======================
 
+    /** Crea un club nuevo; necesita nombre y un cupo mayor que cero. */
     public int createClub(Club club) {
         if (!Validator.isNotBlank(club.getName())) {
             throw new BusinessException("El nombre del club es obligatorio.");
@@ -63,18 +64,21 @@ public class ExtracurricularService {
     }
 
     /**
-     * Enrolls a student in a club. Rules: active student, active club, not already a member
-     * and free capacity.
+     * Inscribe a un estudiante en un club. Reglas: estudiante activo, club activo, que no sea ya miembro
+     * y que haya cupo libre.
      */
     public int joinClub(int studentId, int clubId, LocalDate joinDate) {
-        Student student = activeStudent(studentId);
+        Student student = activeStudent(studentId);       // regla 1: el estudiante debe estar activo
         Club club = getClub(clubId);
+        // regla 2: el club debe estar activo
         if (!club.isActive()) {
             throw new BusinessException("El club " + club.getName() + " no está activo.");
         }
+        // regla 3: no puede ser ya miembro activo del mismo club
         if (membershipDao.findActive(studentId, clubId).isPresent()) {
             throw new BusinessException(student.getFullName() + " ya es miembro activo de " + club.getName() + ".");
         }
+        // regla 4: VALIDACIÓN DE CUPO: los miembros activos no pueden alcanzar el cupo máximo
         int members = clubDao.countActiveMembers(clubId);
         if (members >= club.getMaxCapacity()) {
             throw new BusinessException("Cupo lleno: " + club.getName() + " tiene " + members + "/" + club.getMaxCapacity()
@@ -88,6 +92,7 @@ public class ExtracurricularService {
         return membershipDao.insert(membership);
     }
 
+    /** Retira a un estudiante de un club (la membresía queda como Retirada, no se borra). */
     public void leaveClub(int studentId, int clubId, String reason) {
         ClubMembership membership = membershipDao.findActive(studentId, clubId)
                 .orElseThrow(() -> new BusinessException("El estudiante no es miembro activo de ese club."));
@@ -102,17 +107,19 @@ public class ExtracurricularService {
         return membershipDao.findByStudent(studentId);
     }
 
-    /** Occupancy of every club, fullest first. */
+    /** Ocupación de cada club, del más lleno al más vacío. */
     public List<ClubOccupancy> clubOccupancy() {
         return clubDao.findAll().stream()
+                // por cada club se cuentan sus miembros activos y se compara con el cupo
                 .map(club -> new ClubOccupancy(club.getId(), club.getName(), clubDao.countActiveMembers(club.getId()),
                         club.getMaxCapacity()))
                 .sorted(Comparator.comparingDouble(ClubOccupancy::occupancyPercent).reversed())
                 .toList();
     }
 
-    // ---------- events ----------
+    // ====================== EVENTOS ======================
 
+    /** Crea un evento nuevo; el nombre y la fecha son obligatorios. */
     public int createEvent(SchoolEvent event) {
         if (!Validator.isNotBlank(event.getName()) || event.getDate() == null) {
             throw new BusinessException("El nombre y la fecha del evento son obligatorios.");
@@ -129,9 +136,11 @@ public class ExtracurricularService {
         return eventDao.findById(eventId).orElseThrow(() -> new BusinessException("No existe el evento con id " + eventId + "."));
     }
 
+    /** Registra a un estudiante como participante de un evento. */
     public int registerParticipant(int eventId, int studentId, ParticipationRole role) {
         SchoolEvent event = getEvent(eventId);
         activeStudent(studentId);
+        // No puede registrarse dos veces en el mismo evento
         boolean duplicated = participationDao.findByEvent(eventId).stream().anyMatch(p -> p.getStudentId() == studentId);
         if (duplicated) {
             throw new BusinessException("El estudiante ya está registrado en " + event.getName() + ".");
@@ -140,21 +149,25 @@ public class ExtracurricularService {
         participation.setEventId(eventId);
         participation.setStudentId(studentId);
         participation.setRole(role);
+        // En eventos con competencia arranca como "Participante"; en los demás no tiene posición (null)
         participation.setPosition(event.isCompetitive() ? EventPosition.PARTICIPANT : null);
         return participationDao.insert(participation);
     }
 
-    /** Sets the position; 1st, 2nd and 3rd place can only be given once per event. */
+    /** Asigna la posición; el 1er, 2do y 3er lugar solo pueden darse una vez por evento. */
     public void assignPosition(int eventId, int studentId, EventPosition position) {
         SchoolEvent event = getEvent(eventId);
+        // Solo los eventos con competencia tienen posiciones
         if (!event.isCompetitive()) {
             throw new BusinessException("El evento " + event.getName() + " no tiene competencia.");
         }
         List<EventParticipation> participants = participationDao.findByEvent(eventId);
+        // El estudiante debe estar registrado en el evento
         EventParticipation participation = participants.stream()
                 .filter(p -> p.getStudentId() == studentId)
                 .findFirst()
                 .orElseThrow(() -> new BusinessException("El estudiante no participa en este evento."));
+        // Un puesto del podio (1°, 2° o 3°) no se puede dar a dos estudiantes distintos
         boolean podiumTaken = position != EventPosition.PARTICIPANT && participants.stream()
                 .anyMatch(p -> p.getPosition() == position && p.getStudentId() != studentId);
         if (podiumTaken) {
@@ -171,6 +184,7 @@ public class ExtracurricularService {
         return participationDao.findAll();
     }
 
+    /** Busca al estudiante y verifica que esté activo; si no, lanza un error de negocio. */
     private Student activeStudent(int studentId) {
         Student student = studentDao.findById(studentId)
                 .orElseThrow(() -> new BusinessException("No existe un estudiante con id " + studentId + "."));

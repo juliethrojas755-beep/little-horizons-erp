@@ -4,19 +4,21 @@ import com.littlehorizons.erp.model.StudentDiscount;
 import java.math.BigDecimal;
 
 /**
- * Strategy pattern: each discount type knows how to compute its own discount.
- * {@link com.littlehorizons.erp.service.PaymentService} only talks to this interface,
- * so a new kind of discount is a new class, not a new {@code if} (Open/Closed).
+ * Patrón Strategy: cada tipo de descuento sabe calcular su propio descuento.
+ * {@link com.littlehorizons.erp.service.PaymentService} solo habla con esta interfaz, así que un nuevo
+ * tipo de descuento es una clase nueva y no un nuevo {@code if} (principio Abierto/Cerrado).
  */
 public interface DiscountStrategy {
 
     /**
-     * @param baseAmount price of the concept before discount
-     * @param discount   discount record of the student
-     * @return amount to subtract (never negative, never above the base)
+     * Calcula cuánto se descuenta.
+     *
+     * @param baseAmount precio del concepto antes del descuento
+     * @param discount   registro del descuento del estudiante
+     * @return valor a restar (nunca negativo ni mayor que el precio base)
      */
     BigDecimal calculateDiscount(BigDecimal baseAmount, StudentDiscount discount);
 
-    /** @return text shown to the user, e.g. "Beca 50%" */
+    /** @return texto para mostrar al usuario, por ejemplo "Beca 50%" */
     String describe(StudentDiscount discount);
 }

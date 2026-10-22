@@ -5,16 +5,18 @@ import java.math.BigDecimal;
 import java.util.function.IntPredicate;
 
 /**
- * Sibling discount: it only applies while the student REALLY has a sibling in the school.
- * If the sibling graduates or leaves, the discount stops automatically.
+ * Descuento por hermanos: solo aplica mientras el estudiante REALMENTE tenga un hermano activo en el colegio.
+ * Si el hermano se gradúa o se retira, el descuento se detiene solo.
  */
 public class SiblingDiscountStrategy implements DiscountStrategy {
 
+    // Reutiliza el cálculo por porcentaje (composición en lugar de repetir código)
     private final PercentageDiscountStrategy percentage = new PercentageDiscountStrategy("Descuento por hermanos");
+    // Función que dice, para un id de estudiante, si tiene un hermano activo
     private final IntPredicate hasActiveSibling;
 
     /**
-     * @param hasActiveSibling tells, for a student id, whether a sibling is currently active
+     * @param hasActiveSibling indica, para el id de un estudiante, si actualmente tiene un hermano activo
      */
     public SiblingDiscountStrategy(IntPredicate hasActiveSibling) {
         this.hasActiveSibling = hasActiveSibling;
@@ -22,6 +24,7 @@ public class SiblingDiscountStrategy implements DiscountStrategy {
 
     @Override
     public BigDecimal calculateDiscount(BigDecimal baseAmount, StudentDiscount discount) {
+        // Si tiene hermano activo se calcula el porcentaje; si no, el descuento es cero
         return hasActiveSibling.test(discount.getStudentId())
                 ? percentage.calculateDiscount(baseAmount, discount)
                 : BigDecimal.ZERO;

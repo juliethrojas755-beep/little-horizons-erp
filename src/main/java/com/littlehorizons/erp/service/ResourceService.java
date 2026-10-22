@@ -31,20 +31,23 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Resource catalog (library and labs) and loans to students and teachers.
+ * Catálogo de recursos (biblioteca y laboratorios) y préstamos a estudiantes y profesores.
  */
 public class ResourceService {
 
-    /** A student cannot have more than this number of resources at the same time. */
+    /** Un estudiante no puede tener más de este número de recursos prestados al mismo tiempo. */
     public static final int MAX_OPEN_LOANS_PER_STUDENT = 3;
+    /** Máximo de días que puede durar un préstamo. */
     public static final int MAX_LOAN_DAYS = 30;
 
     private final ResourceDao resourceDao;
     private final ResourceCategoryDao categoryDao;
+    // Los dos DAO de préstamos comparten la misma interfaz genérica LoanDao<T>
     private final LoanDao<StudentLoan> studentLoanDao;
     private final LoanDao<TeacherLoan> teacherLoanDao;
     private final StudentDao studentDao;
     private final TeacherDao teacherDao;
+    // Permite guardar el préstamo y cambiar el estado del recurso en una sola transacción
     private final TransactionManager transactions;
 
     public ResourceService(ResourceDao resourceDao, ResourceCategoryDao categoryDao, LoanDao<StudentLoan> studentLoanDao,
@@ -59,8 +62,9 @@ public class ResourceService {
         this.transactions = transactions;
     }
 
-    // ---------- catalog ----------
+    // ====================== CATÁLOGO ======================
 
+    /** Registra un recurso nuevo en el inventario; el código debe ser único. */
     public int registerResource(Resource resource) {
         if (!Validator.isNotBlank(resource.getCode()) || !Validator.isNotBlank(resource.getName())) {
             throw new BusinessException("El código y el nombre del recurso son obligatorios.");
@@ -68,11 +72,11 @@ public class ResourceService {
         if (resourceDao.findByCode(resource.getCode()).isPresent()) {
             throw new BusinessException("Ya existe un recurso con el código " + resource.getCode() + ".");
         }
-        resource.setStatus(ResourceStatus.AVAILABLE);
+        resource.setStatus(ResourceStatus.AVAILABLE);      // un recurso nuevo empieza Disponible
         return resourceDao.insert(resource);
     }
 
-    /** Manual status change (maintenance, decommission). Loaned resources change only by loan/return. */
+    /** Cambio manual de estado (mantenimiento, baja). El estado Prestado solo cambia al prestar o devolver. */
     public void changeStatus(String code, ResourceStatus status) {
         Resource resource = getByCode(code);
         if (resource.getStatus() == ResourceStatus.LOANED || status == ResourceStatus.LOANED) {
@@ -103,19 +107,23 @@ public class ResourceService {
         return categoryDao.findAll().stream().collect(Collectors.toMap(ResourceCategory::getId, Function.identity()));
     }
 
-    // ---------- loans ----------
+    // ====================== PRÉSTAMOS ======================
 
+    /** Presta un recurso a un estudiante por cierto número de días. */
     public int loanToStudent(String resourceCode, int studentId, int days) {
         Student student = studentDao.findById(studentId)
                 .orElseThrow(() -> new BusinessException("No existe un estudiante con id " + studentId + "."));
+        // Regla 1: solo estudiantes activos
         if (student.getStatus() != StudentStatus.ACTIVE) {
             throw new BusinessException("Solo los estudiantes activos pueden recibir préstamos.");
         }
+        // Regla 2: máximo 3 préstamos abiertos (sin fecha de devolución) al mismo tiempo
         long openLoans = studentLoanDao.findByBorrower(studentId).stream().filter(l -> l.getReturnDate() == null).count();
         if (openLoans >= MAX_OPEN_LOANS_PER_STUDENT) {
             throw new BusinessException(student.getFullName() + " ya tiene " + openLoans + " préstamos abiertos (máximo "
                     + MAX_OPEN_LOANS_PER_STUDENT + ").");
         }
+        // Regla 3: no puede pedir otro recurso si tiene alguno vencido
         boolean hasOverdue = studentLoanDao.findByBorrower(studentId).stream().anyMatch(l -> l.isOverdue(LocalDate.now()));
         if (hasOverdue) {
             throw new BusinessException(student.getFullName() + " tiene préstamos vencidos. Debe devolverlos primero.");
@@ -125,6 +133,7 @@ public class ResourceService {
         return createLoan(resourceCode, days, loan, studentLoanDao);
     }
 
+    /** Presta un recurso a un profesor por cierto número de días. */
     public int loanToTeacher(String resourceCode, int teacherId, int days) {
         Teacher teacher = teacherDao.findById(teacherId)
                 .orElseThrow(() -> new BusinessException("No existe un profesor con id " + teacherId + "."));
@@ -136,17 +145,18 @@ public class ResourceService {
         return createLoan(resourceCode, days, loan, teacherLoanDao);
     }
 
-    /** Return of a student loan: the resource goes back to Disponible. */
+    /** Devolución de un préstamo de estudiante: el recurso vuelve a quedar Disponible. */
     public void returnStudentLoan(int loanId) {
         returnLoan(loanId, studentLoanDao);
     }
 
+    /** Devolución de un préstamo de profesor. */
     public void returnTeacherLoan(int loanId) {
         returnLoan(loanId, teacherLoanDao);
     }
 
     public List<StudentLoan> openStudentLoans() {
-        studentLoanDao.refreshOverdue(LocalDate.now());
+        studentLoanDao.refreshOverdue(LocalDate.now());   // antes de listar se marcan como Vencidos los que ya pasaron la fecha
         return studentLoanDao.findOpen();
     }
 
@@ -156,12 +166,13 @@ public class ResourceService {
     }
 
     /**
-     * Overdue loans of students AND teachers in a single list, most delayed first.
-     * Before reading, the status Activo is updated to Vencido when the due date passed.
+     * Préstamos vencidos de estudiantes Y profesores en una sola lista, del más atrasado al menos atrasado.
+     * Antes de leer, el estado Activo pasa a Vencido cuando la fecha límite ya pasó.
      */
     public List<OverdueLoan> overdueLoans(LocalDate today) {
         studentLoanDao.refreshOverdue(today);
         teacherLoanDao.refreshOverdue(today);
+        // Tablas de búsqueda id -> dato para mostrar nombres en el reporte
         Map<Integer, Resource> resources = resourceDao.findAll().stream()
                 .collect(Collectors.toMap(Resource::getId, Function.identity()));
         Map<Integer, String> students = studentDao.findAll().stream()
@@ -169,6 +180,7 @@ public class ResourceService {
         Map<Integer, String> teachers = teacherDao.findAll().stream()
                 .collect(Collectors.toMap(Teacher::getId, Teacher::getFullName));
 
+        // Se convierte cada lista de préstamos al mismo tipo OverdueLoan y se juntan con Stream.concat
         Stream<OverdueLoan> studentOverdue = toOverdue(studentLoanDao.findOpen(), "Estudiante", students::get, resources, today);
         Stream<OverdueLoan> teacherOverdue = toOverdue(teacherLoanDao.findOpen(), "Profesor", teachers::get, resources, today);
         return Stream.concat(studentOverdue, teacherOverdue)
@@ -176,21 +188,28 @@ public class ResourceService {
                 .toList();
     }
 
-    // ---------- helpers shared by both loan types ----------
+    // ====================== LÓGICA COMPARTIDA POR LOS DOS TIPOS DE PRÉSTAMO ======================
 
+    /**
+     * Crea un préstamo (de estudiante o de profesor) y marca el recurso como Prestado, todo en una transacción.
+     * Es genérico: funciona con cualquier subclase de Loan.
+     */
     private <T extends Loan> int createLoan(String resourceCode, int days, T loan, LoanDao<T> dao) {
+        // La duración debe estar entre 1 y 30 días
         if (days < 1 || days > MAX_LOAN_DAYS) {
             throw new BusinessException("El préstamo debe ser de 1 a " + MAX_LOAN_DAYS + " días.");
         }
         Resource resource = getByCode(resourceCode);
+        // Solo se presta lo que está Disponible
         if (!resource.isAvailable()) {
             throw new BusinessException("El recurso " + resource.getName() + " no está disponible (estado: "
                     + resource.getStatus() + ").");
         }
         loan.setResourceId(resource.getId());
         loan.setLoanDate(LocalDate.now());
-        loan.setDueDate(LocalDate.now().plusDays(days));
+        loan.setDueDate(LocalDate.now().plusDays(days));      // fecha límite = hoy + días del préstamo
         loan.setStatus(LoanStatus.ACTIVE);
+        // Transacción: o se guardan las dos cosas (préstamo y cambio de estado) o ninguna
         return transactions.inTransaction(connection -> {
             int id = dao.insert(connection, loan);
             resourceDao.updateStatus(connection, resource.getId(), ResourceStatus.LOANED);
@@ -198,8 +217,10 @@ public class ResourceService {
         });
     }
 
+    /** Registra la devolución: marca el préstamo como Devuelto y el recurso como Disponible (en una transacción). */
     private <T extends Loan> void returnLoan(int loanId, LoanDao<T> dao) {
         T loan = dao.findById(loanId).orElseThrow(() -> new BusinessException("No existe el préstamo " + loanId + "."));
+        // No se puede devolver dos veces
         if (loan.getReturnDate() != null) {
             throw new BusinessException("Ese préstamo ya fue devuelto el " + loan.getReturnDate() + ".");
         }
@@ -210,12 +231,14 @@ public class ResourceService {
         });
     }
 
+    /** Convierte los préstamos vencidos de un tipo (estudiante o profesor) en objetos OverdueLoan para el reporte. */
     private <T extends Loan> Stream<OverdueLoan> toOverdue(List<T> loans, String type, IntFunction<String> names,
                                                           Map<Integer, Resource> resources, LocalDate today) {
         return loans.stream()
-                .filter(loan -> loan.isOverdue(today))
+                .filter(loan -> loan.isOverdue(today))           // solo los que ya pasaron la fecha límite
                 .map(loan -> {
                     Resource resource = resources.get(loan.getResourceId());
+                    // días de retraso = días entre la fecha límite y hoy
                     return new OverdueLoan(loan.getId(), type, names.apply(loan.getBorrowerId()), resource.getCode(),
                             resource.getName(), loan.getDueDate(), ChronoUnit.DAYS.between(loan.getDueDate(), today));
                 });
