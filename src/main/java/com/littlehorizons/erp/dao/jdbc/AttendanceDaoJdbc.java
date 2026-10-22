@@ -9,28 +9,48 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * JDBC implementation of {@link AttendanceDao} over {@code asistencias}.
+ * Implementación JDBC de {@link AttendanceDao} sobre la tabla {@code asistencias}.
+ * Todo el SQL de registros de asistencia vive aquí; los servicios nunca ven una sentencia SQL.
  */
 public class AttendanceDaoJdbc extends BaseJdbcDao implements AttendanceDao {
 
+    /**
+     * Guarda un registro de asistencia nuevo.
+     *
+     * @return el id generado por MySQL
+     */
     @Override
     public int insert(Attendance a) {
+        // Los ? se reemplazan en orden por los valores de abajo: el orden de las columnas debe coincidir
         return insert("INSERT INTO asistencias (id_estudiante, id_materia, fecha_asistencia, estado_asistencia, observaciones, "
                         + "registrado_por) VALUES (?, ?, ?, ?, ?, ?)",
                 a.getStudentId(), a.getSubjectId(), a.getDate(), a.getStatus(), a.getNotes(), a.getRecordedByTeacherId());
     }
 
+    /**
+     * Busca los registros de un estudiante.
+     */
     @Override
     public List<Attendance> findByStudent(int studentId) {
+        // Consulta con ? (PreparedStatement); this::map convierte cada fila del resultado en un objeto
         return queryList("SELECT * FROM asistencias WHERE id_estudiante = ? ORDER BY fecha_asistencia DESC", this::map, studentId);
     }
 
+    /**
+     * Busca los registros entre dos fechas (BETWEEN incluye los extremos).
+     */
     @Override
     public List<Attendance> findBetween(LocalDate from, LocalDate to) {
+        // Consulta con ? (PreparedStatement); this::map convierte cada fila del resultado en un objeto
         return queryList("SELECT * FROM asistencias WHERE fecha_asistencia BETWEEN ? AND ? ORDER BY fecha_asistencia",
                 this::map, from, to);
     }
 
+    /**
+     * Convierte la fila actual del ResultSet en un objeto Attendance.
+     * Cada columna en español se copia al atributo en inglés que le corresponde.
+     * Para las fechas y los enteros que pueden ser NULL se usan las ayudas de BaseJdbcDao.
+     */
     private Attendance map(ResultSet rs) throws SQLException {
         Attendance attendance = new Attendance();
         attendance.setId(rs.getInt("id_asistencia"));

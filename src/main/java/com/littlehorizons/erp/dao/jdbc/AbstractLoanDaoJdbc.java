@@ -11,23 +11,33 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Shared SQL for {@code prestamos_estudiante} and {@code prestamos_profesor}.
- * Both tables have the same columns except the borrower, so subclasses only say
- * which table, which borrower column and how to create the entity (Template Method).
+ * SQL compartido de las tablas {@code prestamos_estudiante} y {@code prestamos_profesor}.
+ * <p>
+ * Las dos tablas tienen las mismas columnas excepto la del prestatario, así que las subclases solo dicen
+ * qué tabla usar, cuál es la columna del prestatario y cómo crear el objeto (patrón Template Method).
+ * Se escribe el SQL una sola vez en lugar de duplicarlo.
+ * </p>
+ *
+ * @param <T> StudentLoan o TeacherLoan
  */
 public abstract class AbstractLoanDaoJdbc<T extends Loan> extends BaseJdbcDao implements LoanDao<T> {
 
-    /** @return table name */
+    // ---------- Piezas que cada subclase debe definir ----------
+
+    /** @return nombre de la tabla */
     protected abstract String table();
 
-    /** @return borrower column (id_estudiante or id_profesor) */
+    /** @return columna del prestatario (id_estudiante o id_profesor) */
     protected abstract String borrowerColumn();
 
-    /** Creates the concrete loan with its borrower id already set. */
+    /** Crea el préstamo concreto con el id del prestatario ya asignado. */
     protected abstract T newLoan(int borrowerId);
+
+    // ---------- Operaciones (el nombre de la tabla se arma con table() y borrowerColumn()) ----------
 
     @Override
     public int insert(Connection connection, T loan) throws SQLException {
+        // Se usa la conexión recibida para que el préstamo y el cambio de estado del recurso vayan en la misma transacción
         return insert(connection, "INSERT INTO " + table() + " (id_recurso, " + borrowerColumn() + ", fecha_prestamo, "
                         + "fecha_devolucion_esperada, estado_prestamo, observaciones) VALUES (?, ?, ?, ?, ?, ?)",
                 loan.getResourceId(), loan.getBorrowerId(), loan.getLoanDate(), loan.getDueDate(), loan.getStatus(),
@@ -41,6 +51,7 @@ public abstract class AbstractLoanDaoJdbc<T extends Loan> extends BaseJdbcDao im
 
     @Override
     public List<T> findOpen() {
+        // "Abierto" = todavía no tiene fecha de devolución real
         return queryList("SELECT * FROM " + table() + " WHERE fecha_devolucion_real IS NULL ORDER BY fecha_devolucion_esperada",
                 this::map);
     }
@@ -64,12 +75,15 @@ public abstract class AbstractLoanDaoJdbc<T extends Loan> extends BaseJdbcDao im
 
     @Override
     public int refreshOverdue(LocalDate today) {
+        // Pasa a Vencido todo préstamo Activo, sin devolver, cuya fecha límite ya pasó
         return update("UPDATE " + table() + " SET estado_prestamo = ? WHERE estado_prestamo = ? "
                 + "AND fecha_devolucion_real IS NULL AND fecha_devolucion_esperada < ?", LoanStatus.OVERDUE, LoanStatus.ACTIVE, today);
     }
 
+    // ---------- Conversión de una fila en objeto ----------
+
     private T map(ResultSet rs) throws SQLException {
-        T loan = newLoan(rs.getInt(borrowerColumn()));
+        T loan = newLoan(rs.getInt(borrowerColumn()));   // la subclase decide si es StudentLoan o TeacherLoan
         loan.setId(rs.getInt("id_prestamo"));
         loan.setResourceId(rs.getInt("id_recurso"));
         loan.setLoanDate(getDate(rs, "fecha_prestamo"));

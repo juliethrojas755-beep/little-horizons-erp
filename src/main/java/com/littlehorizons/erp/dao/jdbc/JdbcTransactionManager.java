@@ -8,20 +8,23 @@ import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
- * JDBC transaction: disables auto-commit, commits when the work ends and rolls back on any error.
+ * Transacción con JDBC: desactiva el guardado automático, confirma (commit) cuando el trabajo termina
+ * bien y deshace todo (rollback) ante cualquier error.
  */
 public class JdbcTransactionManager implements TransactionManager {
 
     @Override
     public <R> R inTransaction(TransactionalWork<R> work) {
+        // La conexión se cierra sola al salir del try (try-with-resources)
         try (Connection connection = DatabaseConnection.getInstance().getConnection()) {
+            // Por defecto cada sentencia se guarda sola; se apaga para decidir nosotros cuándo confirmar
             connection.setAutoCommit(false);
             try {
-                R result = work.execute(connection);
-                connection.commit();
+                R result = work.execute(connection);   // aquí se ejecutan los inserts/updates compartiendo la conexión
+                connection.commit();                    // todo salió bien: se guardan los cambios juntos
                 return result;
             } catch (SQLException | RuntimeException e) {
-                connection.rollback();
+                connection.rollback();                  // algo falló: se deshace TODO lo hecho en la transacción
                 throw e;
             }
         } catch (SQLException e) {
