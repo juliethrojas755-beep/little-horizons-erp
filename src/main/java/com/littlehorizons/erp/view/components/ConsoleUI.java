@@ -5,14 +5,16 @@ import com.littlehorizons.erp.util.Ansi;
 import java.util.List;
 
 /**
- * Visual building blocks of the console: banner, headers, boxes, messages and bars.
- * <p>All the drawing lives here, so every screen looks the same (consistent UX) and the
- * views only decide WHAT to show.</p>
+ * Piezas visuales de la consola: logo, encabezados, cajas, mensajes y barras.
+ * <p>Todo el dibujo vive aquí, así todas las pantallas se ven igual (experiencia consistente) y las
+ * vistas solo deciden QUÉ mostrar.</p>
  */
 public final class ConsoleUI {
 
+    // Ancho en caracteres de los encabezados y las cajas
     public static final int WIDTH = 84;
 
+    // Dibujo del logo en arte ASCII: una línea de texto por cada fila
     private static final String[] LOGO = {
         " _     _ _   _   _        _   _            _                   ",
         "| |   (_) |_| |_| | ___  | | | | ___  _ __(_)_______  _ __  ___",
@@ -20,14 +22,17 @@ public final class ConsoleUI {
         "| |___| | |_| |_| |  __/ |  _  | (_) | |  | |/ / (_) | | | \\__ \\",
         "|_____|_|\\__|\\__|_|\\___| |_| |_|\\___/|_|  |_/___\\___/|_| |_|___/"
     };
+    // Un color por cada fila del logo, para que se vea con degradado
     private static final Ansi[] LOGO_COLORS = {Ansi.BRIGHT_CYAN, Ansi.CYAN, Ansi.BRIGHT_BLUE, Ansi.BLUE, Ansi.MAGENTA};
 
+    // Constructor privado: clase de utilidad con métodos estáticos
     private ConsoleUI() {
     }
 
-    /** Clears the screen when the console understands ANSI codes; otherwise prints blank lines. */
+    /** Limpia la pantalla si la consola entiende códigos ANSI; si no (por ejemplo en NetBeans) imprime líneas en blanco. */
     public static void clear() {
         if (Ansi.isEnabled()) {
+            // ESC[H mueve el cursor arriba a la izquierda y ESC[2J borra toda la pantalla
             System.out.print("\u001B[H\u001B[2J");
             System.out.flush();
         } else {
@@ -35,7 +40,7 @@ public final class ConsoleUI {
         }
     }
 
-    /** Big gradient logo shown at start and on the main menu. */
+    /** Logo grande con degradado de colores que se muestra al iniciar y en el menú principal. */
     public static void banner() {
         System.out.println();
         for (int i = 0; i < LOGO.length; i++) {
@@ -46,10 +51,12 @@ public final class ConsoleUI {
         System.out.println();
     }
 
-    /** Screen header with breadcrumb: "Inicio › Gestión Financiera". */
+    /** Encabezado de pantalla con el camino recorrido (migas de pan): "Inicio › Gestión Financiera". */
     public static void header(String title, String... breadcrumb) {
+        // Camino recorrido: "Inicio" o "Inicio › Módulo › Opción"
         String path = breadcrumb.length == 0 ? "Inicio" : "Inicio › " + String.join(" › ", breadcrumb);
         System.out.println();
+        // Caja doble: línea superior, título centrado en mayúsculas y línea inferior
         System.out.println(Ansi.BRIGHT_BLUE.apply("╔" + "═".repeat(WIDTH - 2) + "╗"));
         System.out.println(Ansi.BRIGHT_BLUE.apply("║") + center(Ansi.BOLD + Ansi.WHITE.apply(title.toUpperCase()), WIDTH - 2)
                 + Ansi.BRIGHT_BLUE.apply("║"));
@@ -57,13 +64,15 @@ public final class ConsoleUI {
         System.out.println("  " + Ansi.GRAY.apply("⌂ " + path));
     }
 
-    /** Smaller section title inside a screen. */
+    /** Título de sección más pequeño dentro de una pantalla. */
     public static void section(String title) {
         System.out.println();
+        // Línea con el título al inicio, completada con guiones hasta el ancho total
         String line = "── " + title + " ";
         System.out.println(Ansi.BRIGHT_CYAN.apply(line + "─".repeat(Math.max(0, WIDTH - visibleLength(line)))));
     }
 
+    // Mensajes con símbolo y color: éxito (verde), error (rojo), advertencia (amarillo) e información (cian)
     public static void success(String message) {
         System.out.println("  " + Ansi.BRIGHT_GREEN.apply("✔ " + message));
     }
@@ -80,7 +89,11 @@ public final class ConsoleUI {
         System.out.println("  " + Ansi.CYAN.apply("ℹ ") + message);
     }
 
-    /** Prints the result message with the right color. @return {@code true} when it succeeded */
+    /**
+     * Imprime el mensaje de un resultado con el color correcto (verde si salió bien, rojo si falló).
+     *
+     * @return {@code true} cuando la operación fue exitosa
+     */
     public static boolean show(OperationResult<?> result) {
         if (result.success()) {
             if (result.message() != null) {
@@ -92,8 +105,9 @@ public final class ConsoleUI {
         return result.success();
     }
 
-    /** Label/value pairs aligned in two columns, like a record card. */
+    /** Ficha con parejas etiqueta/valor alineadas en dos columnas. */
     public static void card(String title, List<String[]> rows) {
+        // El ancho de la columna de etiquetas es el de la etiqueta más larga + 2
         int labelWidth = rows.stream().mapToInt(row -> row[0].length()).max().orElse(10) + 2;
         System.out.println("  " + Ansi.BRIGHT_BLUE.apply("┌─ ") + Ansi.BOLD + Ansi.WHITE.apply(title) + " "
                 + Ansi.BRIGHT_BLUE.apply("─".repeat(Math.max(2, WIDTH - 7 - title.length()))));
@@ -105,28 +119,34 @@ public final class ConsoleUI {
     }
 
     /**
-     * Horizontal bar, e.g. for averages or occupancy.
+     * Barra horizontal, por ejemplo para promedios u ocupación.
      *
-     * @param ratio value between 0 and 1
+     * @param ratio valor entre 0 y 1 (qué parte de la barra se llena)
+     * @param width cantidad total de caracteres de la barra
+     * @param color color de la parte llena
      */
     public static String bar(double ratio, int width, Ansi color) {
+        // Se limita la proporción al rango 0 a 1 para que la barra nunca se desborde
         double safe = Math.max(0, Math.min(1, ratio));
+        // Cantidad de bloques llenos (█); el resto se rellena con bloques claros (░)
         int filled = (int) Math.round(safe * width);
         return color.apply("█".repeat(filled)) + Ansi.GRAY.apply("░".repeat(width - filled));
     }
 
-    /** Colors a grade by the Colombian performance scale. */
+    /** Colorea una nota según la escala de desempeño colombiana: rojo bajo, amarillo básico, verde alto y superior. */
     public static String grade(java.math.BigDecimal grade) {
         if (grade == null) {
             return Ansi.GRAY.apply("-");
         }
+        // Escala: menos de 3.0 rojo, menos de 4.0 amarillo, menos de 4.6 verde y desde 4.6 verde brillante
         double value = grade.doubleValue();
         Ansi color = value < 3.0 ? Ansi.RED : value < 4.0 ? Ansi.YELLOW : value < 4.6 ? Ansi.GREEN : Ansi.BRIGHT_GREEN;
         return Ansi.BOLD + color.apply(grade.toPlainString());
     }
 
-    /** Colors a status word: green for good states, yellow for warnings, red for problems. */
+    /** Colorea una palabra de estado: verde para lo bueno, amarillo para advertencias y rojo para problemas. */
     public static String status(String text) {
+        // switch con flechas: devuelve el texto con el color que corresponde a su estado
         return switch (text) {
             case "Activo", "Activa", "Disponible", "Devuelto", "Pagado", "Presente", "Completada" -> Ansi.GREEN.apply(text);
             case "Prestado", "Tardanza", "Licencia", "Pendiente", "En Mantenimiento", "Excusa Médica" -> Ansi.YELLOW.apply(text);
@@ -136,8 +156,8 @@ public final class ConsoleUI {
     }
 
     /**
-     * Returns the emoji when colors are enabled (real terminal) and a plain text
-     * when the console cannot draw emojis, like an IDE output window.
+     * Devuelve el emoji cuando hay colores (terminal real) y un texto simple cuando la consola
+     * no puede dibujar emojis, como la ventana Output de un IDE.
      */
     public static String symbol(String emoji, String plain) {
         return Ansi.isEnabled() ? emoji : plain;
@@ -147,11 +167,11 @@ public final class ConsoleUI {
         System.out.println();
     }
 
-    // ---------- text helpers (ANSI aware) ----------
+    // ====================== AYUDAS DE TEXTO (entienden los códigos ANSI) ======================
 
     /**
-     * Width on screen: ignores ANSI codes and counts emojis as two columns,
-     * so colored text and medals align correctly in tables.
+     * Ancho real en pantalla: ignora los códigos ANSI (no ocupan espacio) y cuenta cada emoji como dos columnas,
+     * así el texto con color y las medallas quedan alineados en las tablas.
      */
     public static int visibleLength(String text) {
         return text.replaceAll("\u001B\\[[;\\d]*m", "").codePoints()
@@ -159,16 +179,19 @@ public final class ConsoleUI {
                 .sum();
     }
 
+    // Rellena con espacios a la derecha hasta alcanzar el ancho (texto alineado a la izquierda)
     public static String pad(String text, int width) {
         int missing = width - visibleLength(text);
         return missing > 0 ? text + " ".repeat(missing) : text;
     }
 
+    // Rellena con espacios a la izquierda (texto alineado a la derecha, para números y dinero)
     public static String padLeft(String text, int width) {
         int missing = width - visibleLength(text);
         return missing > 0 ? " ".repeat(missing) + text : text;
     }
 
+    // Corta un texto largo y le pone "…" al final; si es null devuelve un guion
     public static String truncate(String text, int width) {
         if (text == null) {
             return "-";
@@ -176,6 +199,7 @@ public final class ConsoleUI {
         return text.length() <= width ? text : text.substring(0, Math.max(0, width - 1)) + "…";
     }
 
+    // Centra un texto repartiendo los espacios sobrantes a ambos lados
     private static String center(String text, int width) {
         int total = width - visibleLength(text);
         int left = Math.max(0, total / 2);

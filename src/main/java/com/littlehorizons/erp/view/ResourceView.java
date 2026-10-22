@@ -23,16 +23,21 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
 /**
- * Module 6: library and laboratory resources and their loans.
+ * Módulo 6: recursos de la biblioteca y los laboratorios, y sus préstamos.
+ * <p>Solo pide datos, llama al controlador y dibuja el resultado; las reglas de préstamo están en el servicio.</p>
  */
 public class ResourceView extends BaseView {
 
+    // Título que aparece en el encabezado del menú
     private static final String MODULE = "Gestión de Recursos";
 
     public ResourceView(AppContext app, InputReader input) {
         super(app, input);
     }
 
+    /**
+     * Arma el menú del módulo: cada opción es un texto y un método (referencia con ::).
+     */
     @Override
     public void show() {
         new Menu(MODULE, input)
@@ -50,42 +55,66 @@ public class ResourceView extends BaseView {
                 .show();
     }
 
+    /**
+     * Catálogo completo de recursos.
+     */
     private void catalog() {
         printResources(require(app.resources().findAll()));
     }
 
+    /**
+     * Recursos filtrados por estado (Disponible, Prestado, En Mantenimiento o Dado de Baja).
+     */
     private void byStatus() {
         printResources(require(app.resources().findByStatus(chooseEnum("Estado", ResourceStatus.class))));
     }
 
+    /**
+     * Pide los datos de un recurso nuevo y lo registra en el inventario.
+     */
     private void register() {
         Resource resource = new Resource();
+        // El código de inventario se guarda en mayúsculas
         resource.setCode(input.readText("Código de inventario (ej: LIB-050)").toUpperCase());
         resource.setName(input.readText("Nombre"));
         resource.setCategoryId(input.readChoice("Categoría", require(app.resources().getCategories()), ResourceCategory::getName).getId());
         resource.setDescription(input.readOptionalText("Descripción"));
+        // Si no escribe fecha, se usa hoy
         resource.setAcquisitionDate(input.readDateOrToday("Fecha de adquisición"));
         resource.setLocation(input.readText("Ubicación (ej: Biblioteca, Laboratorio 1)"));
         ConsoleUI.show(app.resources().registerResource(resource));
     }
 
+    /**
+     * Envía un recurso a mantenimiento, lo da de baja o lo habilita de nuevo.
+     */
     private void changeStatus() {
         String code = input.readText("Código del recurso").toUpperCase();
+        // El estado Prestado no se ofrece: solo cambia al prestar o devolver
         ResourceStatus status = input.readChoice("Nuevo estado",
                 List.of(ResourceStatus.AVAILABLE, ResourceStatus.IN_MAINTENANCE, ResourceStatus.DECOMMISSIONED),
                 ResourceStatus::getDbValue);
         ConsoleUI.show(app.resources().changeStatus(code, status));
     }
 
+    /**
+     * Presta un recurso a un estudiante y muestra la fecha en que debe devolverlo.
+     */
     private void loanToStudent() {
+        // Solo se pueden prestar recursos Disponibles
         Resource resource = chooseAvailable();
         Student student = selectStudent();
+        // Duración del préstamo en días (el máximo está en ResourceService)
         int days = input.readInt("Días de préstamo (1 a " + ResourceService.MAX_LOAN_DAYS + ")", 1, ResourceService.MAX_LOAN_DAYS);
+        // show() imprime el mensaje; si el préstamo se guardó, se informa la fecha de devolución
         if (ConsoleUI.show(app.resources().loanToStudent(resource.getCode(), student.getId(), days))) {
             ConsoleUI.info("Debe devolverse el " + Ansi.BOLD + Formats.date(LocalDate.now().plusDays(days)) + Ansi.RESET + ".");
         }
     }
 
+    /**
+     * Presta un recurso a un profesor y muestra la fecha en que debe devolverlo.
+     */
     private void loanToTeacher() {
         Resource resource = chooseAvailable();
         Teacher teacher = selectTeacher();
@@ -95,30 +124,44 @@ public class ResourceView extends BaseView {
         }
     }
 
+    /**
+     * Registra una devolución: se escoge quién devuelve y cuál de sus préstamos abiertos.
+     */
     private void returnLoan() {
+        // Primero se pregunta si devuelve un estudiante o un profesor
         boolean student = input.readChoice("¿Quién devuelve?", List.of("Estudiante", "Profesor"), s -> s).equals("Estudiante");
+        // Tabla para mostrar el nombre del recurso en cada préstamo
         Map<Integer, Resource> resources = resourcesById();
         if (student) {
             Map<Integer, String> names = studentNames();
             List<StudentLoan> open = require(app.resources().openStudentLoans());
+            // Se escoge uno de los préstamos abiertos del estudiante
             StudentLoan loan = input.readChoice("Préstamo", open, l -> describe(l, resources, names::get));
             ConsoleUI.show(app.resources().returnStudentLoan(loan.getId()));
         } else {
             Map<Integer, String> names = teacherNames();
             List<TeacherLoan> open = require(app.resources().openTeacherLoans());
+            // Se escoge uno de los préstamos abiertos del profesor
             TeacherLoan loan = input.readChoice("Préstamo", open, l -> describe(l, resources, names::get));
             ConsoleUI.show(app.resources().returnTeacherLoan(loan.getId()));
         }
     }
 
+    /**
+     * Muestra los préstamos que no se han devuelto, de estudiantes y de profesores.
+     */
     private void openLoans() {
         Map<Integer, Resource> resources = resourcesById();
+        // Dos tablas: los préstamos de estudiantes y los de profesores
         ConsoleUI.section("Estudiantes");
         printLoans(require(app.resources().openStudentLoans()), resources, studentNames()::get);
         ConsoleUI.section("Profesores");
         printLoans(require(app.resources().openTeacherLoans()), resources, teacherNames()::get);
     }
 
+    /**
+     * Reporte de préstamos vencidos con los días de retraso.
+     */
     private void overdue() {
         BaseView.<OverdueLoan>table()
                 .column("Tipo", OverdueLoan::borrowerType)
@@ -130,12 +173,18 @@ public class ResourceView extends BaseView {
                 .print(require(app.resources().overdueLoans()));
     }
 
-    // ---------- helpers ----------
+    // ====================== AYUDAS ======================
 
+    /**
+     * Pide el código de un recurso y se asegura de que esté Disponible; si no, muestra los disponibles y pregunta de nuevo.
+     */
     private Resource chooseAvailable() {
+        // Lista de recursos Disponibles
         List<Resource> available = require(app.resources().findByStatus(ResourceStatus.AVAILABLE));
+        // Se sugiere como ejemplo el código del primer recurso disponible
         String code = input.readText("Código del recurso (ej: " +
                 (available.isEmpty() ? "LIB-001" : available.get(0).getCode()) + ")").toUpperCase();
+        // Si el código no está entre los disponibles se avisa y se vuelve a preguntar (recursividad)
         return available.stream().filter(r -> r.getCode().equals(code)).findFirst().orElseGet(() -> {
             ConsoleUI.warning("Ese código no está disponible. Recursos disponibles:");
             printResources(available);
@@ -143,7 +192,11 @@ public class ResourceView extends BaseView {
         });
     }
 
+    /**
+     * Imprime préstamos en una tabla. Es genérico: sirve para préstamos de estudiantes y de profesores.
+     */
     private <T extends Loan> void printLoans(List<T> loans, Map<Integer, Resource> resources, IntFunction<String> names) {
+        // Fecha de referencia para saber si un préstamo ya venció
         LocalDate today = LocalDate.now();
         BaseView.<T>table()
                 .numberColumn("Id", l -> String.valueOf(l.getId()))
@@ -155,13 +208,20 @@ public class ResourceView extends BaseView {
                 .print(loans);
     }
 
+    /**
+     * Texto que describe un préstamo para escogerlo de una lista.
+     */
     private String describe(Loan loan, Map<Integer, Resource> resources, IntFunction<String> names) {
         Resource resource = resources.get(loan.getResourceId());
         return resource.getCode() + " " + resource.getName() + " · " + names.apply(loan.getBorrowerId())
                 + " · vence " + Formats.date(loan.getDueDate());
     }
 
+    /**
+     * Imprime una lista de recursos en una tabla.
+     */
     private void printResources(List<Resource> resources) {
+        // Tabla para mostrar el nombre de la categoría
         Map<Integer, ResourceCategory> categories = require(app.resources().categoriesById());
         BaseView.<Resource>table()
                 .column("Código", Resource::getCode)
@@ -172,14 +232,23 @@ public class ResourceView extends BaseView {
                 .print(resources);
     }
 
+    /**
+     * Tabla id -> recurso.
+     */
     private Map<Integer, Resource> resourcesById() {
         return require(app.resources().findAll()).stream().collect(Collectors.toMap(Resource::getId, r -> r));
     }
 
+    /**
+     * Tabla id de estudiante -> nombre completo.
+     */
     private Map<Integer, String> studentNames() {
         return require(app.students().findAll()).stream().collect(Collectors.toMap(Student::getId, Student::getFullName));
     }
 
+    /**
+     * Tabla id de profesor -> nombre completo.
+     */
     private Map<Integer, String> teacherNames() {
         return require(app.teachers().findAll()).stream().collect(Collectors.toMap(Teacher::getId, Teacher::getFullName));
     }

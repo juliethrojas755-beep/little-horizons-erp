@@ -19,28 +19,35 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Shared behavior of every screen: access to controllers, input reading and the
- * "pick a student / teacher / guardian" dialogs used by several modules.
- * <p>Views only read input, call a controller and print. They never contain business rules.</p>
+ * Comportamiento común de todas las pantallas: acceso a los controladores, lectura del teclado y los
+ * diálogos de "elegir un estudiante / profesor / acudiente" que usan varios módulos.
+ * <p>Las vistas solo leen datos, llaman a un controlador e imprimen. Nunca tienen reglas de negocio.</p>
  */
 public abstract class BaseView {
 
+    // Acceso a todos los controladores (estudiantes, finanzas, etc.)
     protected final AppContext app;
+    // Lector de teclado con validación
     protected final InputReader input;
 
+    // Constructor protegido: solo lo usan las vistas hijas
     protected BaseView(AppContext app, InputReader input) {
         this.app = app;
         this.input = input;
     }
 
-    /** Opens the module menu. */
+    /** Abre el menú del módulo (cada vista lo implementa a su manera). */
     public abstract void show();
 
+    // Año actual: se usa como año académico por defecto
     protected int currentYear() {
         return LocalDate.now().getYear();
     }
 
-    /** Returns the data when the operation worked; otherwise prints the error and cancels the screen. */
+    /**
+     * Devuelve los datos cuando la operación salió bien; si no, imprime el error y cancela la pantalla
+     * (lanza OperationCancelledException, que el menú captura para volver).
+     */
     protected <T> T require(OperationResult<T> result) {
         if (!result.success()) {
             ConsoleUI.error(result.message());
@@ -49,22 +56,25 @@ public abstract class BaseView {
         return result.data();
     }
 
-    /** Lets the user pick an enum constant by number, showing its Spanish database value. */
+    /** Deja elegir una constante de un enum por su número, mostrando su texto en español. */
     protected <E extends Enum<E> & DbEnum> E chooseEnum(String prompt, Class<E> type) {
         return input.readChoice(prompt, Arrays.asList(type.getEnumConstants()), DbEnum::getDbValue);
     }
 
-    // ---------- selectors ----------
+    // ====================== SELECTORES (se reutilizan en varios módulos) ======================
 
-    /** Finds a student by document number or by name. */
+    /** Busca un estudiante por número de documento o por nombre. */
     protected Student selectStudent() {
+        // Primero se intenta por documento (único); si no coincide, se busca por nombre
         String query = input.readText("Documento o nombre del estudiante");
         Optional<Student> byDocument = require(app.students().findByDocument(query));
         if (byDocument.isPresent()) {
             printSelected("Estudiante", byDocument.get().toString());
             return byDocument.get();
         }
+        // Búsqueda por nombre: puede haber varias coincidencias
         List<Student> matches = require(app.students().search(query));
+        // Si hay una sola coincidencia se usa; si hay varias, el usuario escoge de una lista
         return pickFromList(matches, "estudiante", Student::toString);
     }
 
@@ -75,6 +85,7 @@ public abstract class BaseView {
             printSelected("Acudiente", byDocument.get().toString());
             return byDocument.get();
         }
+        // Se compara en minúsculas para no distinguir mayúsculas de minúsculas
         String needle = query.toLowerCase();
         List<Guardian> matches = require(app.students().findAllGuardians()).stream()
                 .filter(g -> g.getFullName().toLowerCase().contains(needle))
@@ -96,7 +107,7 @@ public abstract class BaseView {
         return pickFromList(matches, "profesor", t -> t.getFullName() + " · " + t.getSpecialization());
     }
 
-    /** Shows the subjects of a grade and lets the user pick one. */
+    /** Muestra las materias de un grado y deja elegir una. */
     protected Subject selectSubjectOfGrade(int gradeLevelId) {
         List<Subject> subjects = require(app.academic().findSubjectsByGrade(gradeLevelId));
         if (subjects.isEmpty()) {
@@ -106,7 +117,7 @@ public abstract class BaseView {
         return input.readChoice("Materia", subjects, Subject::toString);
     }
 
-    /** Grade level of the student in the current year, needed to list his subjects. */
+    /** Grado del estudiante en el año actual; se necesita para listar sus materias. */
     protected int gradeLevelOf(Student student) {
         return require(app.students().getEnrollments(student.getId())).stream()
                 .filter(e -> e.getAcademicYear() == currentYear())
@@ -118,6 +129,7 @@ public abstract class BaseView {
                 });
     }
 
+    // Decide qué hacer con las coincidencias: ninguna (cancela), una (la usa) o varias (deja escoger, máximo 20)
     private <T> T pickFromList(List<T> matches, String noun, Function<T, String> label) {
         if (matches.isEmpty()) {
             ConsoleUI.warning("No se encontró ningún " + noun + " con ese dato.");
@@ -131,15 +143,17 @@ public abstract class BaseView {
         return input.readChoice("Elija el " + noun, matches.subList(0, Math.min(matches.size(), 20)), label);
     }
 
+    // Imprime en verde la persona elegida para que el usuario confirme que es la correcta
     private void printSelected(String noun, String value) {
         System.out.println("  " + Ansi.GREEN.apply("➜ ") + Ansi.GRAY.apply(noun + ": ") + Ansi.BOLD + value + Ansi.RESET);
     }
 
+    // Convierte la primera letra en mayúscula (estudiante -> Estudiante)
     private static String capitalize(String text) {
         return Character.toUpperCase(text.charAt(0)) + text.substring(1);
     }
 
-    /** Small helper so subclasses can build tables in one line. */
+    /** Ayuda para que las vistas hijas construyan tablas en una sola línea. */
     protected static <T> TablePrinter<T> table() {
         return new TablePrinter<>();
     }
